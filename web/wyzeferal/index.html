@@ -592,6 +592,31 @@
         </div>${extra}`;
     }
 
+    // Timers for delayed background refreshes after a toggle.
+    // Wyze's cloud backend takes a few seconds to reflect state changes in get_object_list,
+    // so we optimistically update devicesCache immediately and re-render, then do a real
+    // refresh after a short delay to catch any discrepancy.
+    let refreshTimers = {};
+
+    function updateDeviceCacheState(id, on) {
+      const normId = id.toUpperCase();
+      devicesCache = devicesCache.map((d) => {
+        if ((d.id || d.mac || '').toUpperCase() !== normId) return d;
+        return {
+          ...d,
+          switch_state: on ? 1 : 0,
+          device_params: { ...(d.device_params || {}), switch_state: on ? 1 : 0 },
+        };
+      });
+    }
+
+    function scheduleBackgroundRefresh(id, delayMs = 4000) {
+      clearTimeout(refreshTimers[id]);
+      refreshTimers[id] = setTimeout(() => {
+        loadDevices().catch((e) => console.warn('[SmashDeck] background refresh failed', e));
+      }, delayMs);
+    }
+
     function bindPowerToggles(root) {
       root.querySelectorAll('input[data-role="power"]').forEach((inp) => {
         inp.addEventListener('change', async () => {
@@ -601,10 +626,16 @@
           console.debug('[SmashDeck] power toggle', id, wantOn);
           try {
             await api('POST', '/api/devices/' + encodeURIComponent(id) + '/control', { model, on: wantOn });
-            await loadDevices();
+            // Optimistically update local cache — don't re-fetch immediately because
+            // Wyze's cloud cache is stale for several seconds after a state change.
+            updateDeviceCacheState(id, wantOn);
+            renderDevices();
+            fillDeviceSelects();
+            // Schedule a real refresh after Wyze backend has time to update (4s).
+            scheduleBackgroundRefresh(id, 4000);
           } catch (err) {
             console.error('[SmashDeck] toggle failed', err);
-            inp.checked = !wantOn;
+            inp.checked = !wantOn; // revert checkbox
             alert(err.message || String(err));
           }
         });

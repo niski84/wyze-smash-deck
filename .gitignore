@@ -1,6 +1,6 @@
-# Binary
-wyze-smash-deck
-wyzeferal
+# Compiled binaries (root-level only)
+/wyze-smash-deck
+/wyzeferal
 
 # Sensitive data (never commit)
 .env
