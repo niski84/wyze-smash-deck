@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -328,16 +327,23 @@ func (c *WyzeClient) SetBrightness(ctx context.Context, mac, model string, brigh
 	return err
 }
 
-// SetColor sets the RGB color of a color-capable bulb (e.g. WLPA19C).
-// hexColor must be "#RRGGBB". Wyze uses P1507 (hue 0-360) + P1508 (saturation 0-100).
+// SetColor sets the RGB color of a color-capable Wyze mesh bulb (e.g. HL_BR30C, HL_A19C2).
+// hexColor must be "#RRGGBB" or "RRGGBB".
+//
+// Wyze mesh light color protocol (confirmed via ha-wyze-control-analyzer):
+//   P1508 = "1"      — switch bulb into color mode (vs white/temperature mode)
+//   P1507 = "RRGGBB" — the hex color string (uppercase, no #)
 func (c *WyzeClient) SetColor(ctx context.Context, mac, model, hexColor string) error {
 	if !c.IsConfigured() {
 		return fmt.Errorf("wyze credentials not configured")
 	}
-	h, s, _ := hexToHSL(hexColor)
+	normalized := normalizeHexColor(hexColor)
+	if normalized == "" {
+		return fmt.Errorf("invalid hex color %q — expected #RRGGBB", hexColor)
+	}
 	props := []map[string]string{
-		{"pid": "P1507", "pvalue": fmt.Sprintf("%d", h)},
-		{"pid": "P1508", "pvalue": fmt.Sprintf("%d", s)},
+		{"pid": "P1508", "pvalue": "1"},        // color mode flag
+		{"pid": "P1507", "pvalue": normalized}, // hex color string
 	}
 	token, err := c.ensureToken(ctx)
 	if err != nil {
@@ -352,44 +358,19 @@ func (c *WyzeClient) SetColor(ctx context.Context, mac, model, hexColor string) 
 	return err
 }
 
-// hexToHSL converts "#RRGGBB" → hue [0,360], saturation [0,100], lightness [0,100].
-func hexToHSL(hex string) (h, s, l int) {
-	hex = strings.TrimPrefix(strings.TrimSpace(hex), "#")
-	if len(hex) != 6 {
-		return 0, 0, 100 // default: white
+// normalizeHexColor strips "#" and uppercases a 6-digit hex color string.
+// Returns "" if the input is not a valid 6-digit hex color.
+func normalizeHexColor(v string) string {
+	out := strings.ToUpper(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(v), "#")))
+	if len(out) != 6 {
+		return ""
 	}
-	var rv, gv, bv uint64
-	fmt.Sscanf(hex[0:2], "%x", &rv)
-	fmt.Sscanf(hex[2:4], "%x", &gv)
-	fmt.Sscanf(hex[4:6], "%x", &bv)
-	rf, gf, bf := float64(rv)/255, float64(gv)/255, float64(bv)/255
-
-	maxC := math.Max(rf, math.Max(gf, bf))
-	minC := math.Min(rf, math.Min(gf, bf))
-	delta := maxC - minC
-	lf := (maxC + minC) / 2
-
-	var hf, sf float64
-	if delta != 0 {
-		if lf < 0.5 {
-			sf = delta / (maxC + minC)
-		} else {
-			sf = delta / (2 - maxC - minC)
+	for _, ch := range out {
+		if (ch < '0' || ch > '9') && (ch < 'A' || ch > 'F') {
+			return ""
 		}
-		switch maxC {
-		case rf:
-			hf = (gf - bf) / delta
-			if gf < bf {
-				hf += 6
-			}
-		case gf:
-			hf = (bf-rf)/delta + 2
-		default:
-			hf = (rf-gf)/delta + 4
-		}
-		hf *= 60
 	}
-	return int(math.Round(hf)), int(math.Round(sf * 100)), int(math.Round(lf * 100))
+	return out
 }
 
 func (c *WyzeClient) setPropertyList(ctx context.Context, token, mac, model string, props []map[string]string) error {

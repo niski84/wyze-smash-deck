@@ -11,10 +11,14 @@ const (
 )
 
 // colorCapableModels is the known list of Wyze models that support RGB color.
-// Extend this slice as new models are confirmed.
+// Wyze mesh lights use "HL_" prefix; older series use "WLPA" prefix.
 var colorCapableModels = []string{
-	"WLPA19C", // Wyze Bulb Color (E26 A19)
-	"WLPAC",   // Wyze Bulb Color (compact)
+	"HL_BR30C",  // Wyze Bulb Color BR30 (recessed, mesh)
+	"HL_A19C",   // Wyze Bulb Color A19 (mesh, gen 1)
+	"HL_A19C2",  // Wyze Bulb Color A19 (mesh, gen 2)
+	"HL_WBC",    // Wyze Bulb Color (compact mesh)
+	"WLPA19C",   // Wyze Bulb Color (older non-mesh A19)
+	"WLPAC",     // Wyze Bulb Color (older compact)
 }
 
 // supportsColor returns true if the device is a known RGB color-capable model.
