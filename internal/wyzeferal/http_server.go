@@ -295,6 +295,36 @@ func (s *HTTPServer) handleDeviceSubroutes(w http.ResponseWriter, r *http.Reques
 		}
 		s.logger.Info("Brightness mac=%s val=%d", mac, req.Brightness)
 		writeJSON(w, http.StatusOK, apiResp{Success: true, Data: map[string]any{"brightness": req.Brightness}})
+	case "color":
+		if r.Method != http.MethodPost {
+			writeJSON(w, http.StatusMethodNotAllowed, apiResp{Success: false, Error: "method not allowed"})
+			return
+		}
+		var req struct {
+			Model string `json:"model"`
+			Color string `json:"color"` // "#rrggbb"
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, apiResp{Success: false, Error: "invalid JSON"})
+			return
+		}
+		if len(req.Color) != 7 || req.Color[0] != '#' {
+			writeJSON(w, http.StatusBadRequest, apiResp{Success: false, Error: "color must be #RRGGBB"})
+			return
+		}
+		c := s.wyzeClient()
+		if !c.IsConfigured() {
+			writeJSON(w, http.StatusBadRequest, apiResp{Success: false, Error: "wyze not configured"})
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		if err := c.SetColor(ctx, mac, req.Model, req.Color); err != nil {
+			writeJSON(w, http.StatusBadGateway, apiResp{Success: false, Error: err.Error()})
+			return
+		}
+		s.logger.Info("Color mac=%s color=%s", mac, req.Color)
+		writeJSON(w, http.StatusOK, apiResp{Success: true, Data: map[string]any{"color": req.Color}})
 	case "name":
 		if r.Method != http.MethodPut {
 			writeJSON(w, http.StatusMethodNotAllowed, apiResp{Success: false, Error: "method not allowed"})

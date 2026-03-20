@@ -5,11 +5,32 @@ import "strings"
 // UICategory hints the dashboard which controls to render.
 const (
 	UICategoryPowerSwitch = "power_switch" // binary on/off — toggle
-	UICategoryDimmer      = "dimmer"       // brightness (future Wyze bulb support)
+	UICategoryDimmer      = "dimmer"       // dimmable white bulb (brightness only)
+	UICategoryColorBulb   = "color_bulb"  // color + brightness capable
 	UICategoryGeneric     = "generic"      // show status only
 )
 
-// CategorizeDeviceUI maps Wyze product_type to a dashboard control family.
+// colorCapableModels is the known list of Wyze models that support RGB color.
+// Extend this slice as new models are confirmed.
+var colorCapableModels = []string{
+	"WLPA19C", // Wyze Bulb Color (E26 A19)
+	"WLPAC",   // Wyze Bulb Color (compact)
+}
+
+// supportsColor returns true if the device is a known RGB color-capable model.
+func supportsColor(d WyzeDevice) bool {
+	m := strings.ToUpper(strings.TrimSpace(d.Model))
+	for _, km := range colorCapableModels {
+		if strings.HasPrefix(m, km) {
+			return true
+		}
+	}
+	// Type-level hint — e.g. "color_bulb" from some API responses.
+	t := strings.ToLower(strings.TrimSpace(d.Type))
+	return strings.Contains(t, "color")
+}
+
+// CategorizeDeviceUI maps Wyze device to a dashboard control family.
 func CategorizeDeviceUI(d WyzeDevice) string {
 	t := strings.ToLower(strings.TrimSpace(d.Type))
 	switch t {
@@ -17,6 +38,9 @@ func CategorizeDeviceUI(d WyzeDevice) string {
 		return UICategoryPowerSwitch
 	}
 	if strings.Contains(t, "bulb") || strings.Contains(t, "light") || strings.Contains(t, "lamp") {
+		if supportsColor(d) {
+			return UICategoryColorBulb
+		}
 		return UICategoryDimmer
 	}
 	return UICategoryPowerSwitch
@@ -47,8 +71,8 @@ type EnrichedDevice struct {
 	SwitchState      int    `json:"switch_state"`
 	DeviceParams     any    `json:"device_params,omitempty"`
 	UICategory       string `json:"ui_category"`
-	// DimmerPlaceholder: Wyze Open API path for brightness not wired yet — UI can show disabled slider.
-	DimmerSupported bool `json:"dimmer_supported"`
+	DimmerSupported  bool   `json:"dimmer_supported"`
+	ColorSupported   bool   `json:"color_supported"`
 }
 
 // BuildEnrichedDevice merges Wyze payload + local registry entry.
@@ -67,7 +91,6 @@ func BuildEnrichedDevice(d WyzeDevice, local DeviceLocalMeta) EnrichedDevice {
 		display = mac
 	}
 	cat := CategorizeDeviceUI(d)
-	dimmerOK := cat == UICategoryDimmer
 	return EnrichedDevice{
 		ID:               mac,
 		MAC:              mac,
@@ -80,6 +103,7 @@ func BuildEnrichedDevice(d WyzeDevice, local DeviceLocalMeta) EnrichedDevice {
 		SwitchState:      d.EffectiveSwitchState(),
 		DeviceParams:     d.DeviceParams,
 		UICategory:       cat,
-		DimmerSupported:  dimmerOK,
+		DimmerSupported:  cat == UICategoryDimmer || cat == UICategoryColorBulb,
+		ColorSupported:   cat == UICategoryColorBulb,
 	}
 }

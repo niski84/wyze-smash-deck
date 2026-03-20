@@ -189,11 +189,15 @@
     /* .modal defined under .dimmer-extra */
     .step-row {
       display: grid;
-      grid-template-columns: 1fr 90px 80px 36px;
+      grid-template-columns: 1fr 90px 100px 36px;
       gap: 8px;
       align-items: end;
       margin-bottom: 8px;
     }
+    .step-row .step-extra { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding-left: 4px; }
+    .step-row .step-extra input[type="color"] { height: 28px; width: 60px; border: none; border-radius: 4px; cursor: pointer; }
+    .step-row .step-extra input[type="range"] { flex: 1; accent-color: #f49a17; }
+    .step-row .step-extra .step-bri-pct { font-size: 12px; color: var(--muted); min-width: 32px; }
     @media (max-width: 600px) {
       .step-row { grid-template-columns: 1fr; }
     }
@@ -304,6 +308,11 @@
     .dimmer-extra input[type="range"] { width: 100%; margin-bottom: 2px; accent-color: #f49a17; }
     .dimmer-extra .brightness-row { display: flex; align-items: center; gap: 8px; }
     .dimmer-extra .brightness-val { font-size: 12px; color: var(--muted); min-width: 28px; text-align: right; }
+    .dimmer-extra .color-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+    .dimmer-extra .color-row input[type="color"] {
+      width: 100%; height: 28px; border: none; border-radius: 4px; cursor: pointer;
+      background: none; padding: 0; accent-color: unset;
+    }
     .modal { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; max-width: 640px; width: 100%; padding: 20px; margin-top: 20px; }
     .online-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
     .online-dot.on { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
@@ -569,8 +578,15 @@
       const id = escapeAttr(dev.id || dev.mac);
       const model = escapeAttr(dev.product_model || '');
       let extra = '';
-      if (cat === 'dimmer') {
+      if (cat === 'dimmer' || cat === 'color_bulb') {
         const bval = typeof dev.brightness === 'number' ? dev.brightness : 50;
+        const colorRow = cat === 'color_bulb' ? `
+            <div class="color-row">
+              <span class="muted" style="font-size:11px;">🎨 Color</span>
+              <input type="color" value="${escapeAttr(dev.current_color || '#ffffff')}"
+                data-device-id="${id}" data-model="${model}" data-role="color"
+                data-testid="color-picker" aria-label="Light color" />
+            </div>` : '';
         extra = `
           <div class="dimmer-extra">
             <div class="brightness-row">
@@ -579,7 +595,7 @@
                 data-device-id="${id}" data-model="${model}" data-role="brightness"
                 data-testid="brightness-slider" aria-label="Brightness" />
               <span class="brightness-val">${bval}%</span>
-            </div>
+            </div>${colorRow}
           </div>`;
       }
       return `
@@ -667,6 +683,35 @@
       });
     }
 
+    function updateDeviceCacheColor(id, color) {
+      const normId = id.toUpperCase();
+      devicesCache = devicesCache.map((d) =>
+        (d.id || d.mac || '').toUpperCase() === normId ? { ...d, current_color: color } : d
+      );
+    }
+
+    let colorTimers = {};
+    function bindColorPickers(root) {
+      root.querySelectorAll('input[data-role="color"]').forEach((picker) => {
+        picker.addEventListener('change', () => {
+          const id = picker.getAttribute('data-device-id');
+          const model = picker.getAttribute('data-model');
+          const color = picker.value; // "#rrggbb"
+          console.debug('[SmashDeck] color pick', id, color);
+          clearTimeout(colorTimers[id]);
+          colorTimers[id] = setTimeout(async () => {
+            try {
+              await api('POST', '/api/devices/' + encodeURIComponent(id) + '/color', { model, color });
+              updateDeviceCacheColor(id, color);
+              console.debug('[SmashDeck] color set', id, color);
+            } catch (err) {
+              console.error('[SmashDeck] color failed', err);
+            }
+          }, 400);
+        });
+      });
+    }
+
     function startRename(span, dev) {
       const id = dev.id || dev.mac;
       const cur = span.textContent;
@@ -748,6 +793,7 @@
       });
       bindPowerToggles(el);
       bindBrightnessSliders(el);
+      bindColorPickers(el);
       return el;
     }
 
@@ -774,6 +820,7 @@
       });
       bindPowerToggles(el);
       bindBrightnessSliders(el);
+      bindColorPickers(el);
       return el;
     }
 
@@ -903,10 +950,11 @@
     $('autoType').onchange = syncTypePanels;
     $('runMode').onchange = syncTypePanels;
 
-    function addSceneStepRow(mac, model, name, action, delay) {
+    function addSceneStepRow(mac, model, name, action, delay, color, brightness) {
       const wrap = $('sceneSteps');
       const row = document.createElement('div');
       row.className = 'step-row';
+      const briVal = (brightness > 0 ? brightness : 50);
       row.innerHTML = `
         <div>
           <label>Device</label>
@@ -922,10 +970,21 @@
             <option value="off">off</option>
             <option value="on">on</option>
             <option value="toggle">toggle</option>
+            <option value="color">set color</option>
+            <option value="brightness">set brightness</option>
           </select>
         </div>
         <div>
           <button type="button" class="secondary rm-step">×</button>
+        </div>
+        <div class="step-extra step-color-extra" style="display:none;">
+          <span class="muted" style="font-size:12px;">🎨</span>
+          <input type="color" class="step-color-val" value="${escapeAttr(color || '#ffffff')}" />
+        </div>
+        <div class="step-extra step-bri-extra" style="display:none;">
+          <span class="muted" style="font-size:12px;">☀</span>
+          <input type="range" class="step-bri-val" min="1" max="100" value="${briVal}" />
+          <span class="step-bri-pct">${briVal}%</span>
         </div>`;
       row.querySelector('.rm-step').onclick = () => row.remove();
       const sd = row.querySelector('.step-dev');
@@ -933,7 +992,20 @@
         sd.value = mac;
         sd.dataset.model = model || '';
       }
-      row.querySelector('.step-act').value = action || 'off';
+      const actSel = row.querySelector('.step-act');
+      actSel.value = action || 'off';
+      const colorExtra = row.querySelector('.step-color-extra');
+      const briExtra = row.querySelector('.step-bri-extra');
+      const briSlider = row.querySelector('.step-bri-val');
+      const briPct = row.querySelector('.step-bri-pct');
+      function syncStepExtra() {
+        const v = actSel.value;
+        colorExtra.style.display = v === 'color' ? 'flex' : 'none';
+        briExtra.style.display = v === 'brightness' ? 'flex' : 'none';
+      }
+      actSel.addEventListener('change', syncStepExtra);
+      briSlider.addEventListener('input', () => { briPct.textContent = briSlider.value + '%'; });
+      syncStepExtra(); // initialize visibility
       wrap.appendChild(row);
     }
 
@@ -999,7 +1071,7 @@
         $('simpleAction').value = a.schedule.action || 'off';
       }
       $('sceneSteps').innerHTML = '';
-      (a.scene_steps || []).forEach((s) => addSceneStepRow(s.device_mac, s.device_model, s.device_name, s.action, s.delay_before_sec));
+      (a.scene_steps || []).forEach((s) => addSceneStepRow(s.device_mac, s.device_model, s.device_name, s.action, s.delay_before_sec, s.color, s.brightness));
       syncTypePanels();
       const sel = $('simpleDevices');
       if (sel && (a.device_macs || []).length) {
@@ -1043,13 +1115,23 @@
           const opt = sel.selectedOptions[0];
           const model = opt ? opt.getAttribute('data-model') : '';
           const nm = opt ? opt.textContent : '';
-          base.scene_steps.push({
+          const stepAction = row.querySelector('.step-act').value;
+          const stepObj = {
             order: idx,
             device_mac: mac,
             device_model: model,
             device_name: nm,
-            action: row.querySelector('.step-act').value,
+            action: stepAction,
             delay_before_sec: parseInt(row.querySelector('.step-delay').value, 10) || 0,
+          };
+          if (stepAction === 'color') {
+            stepObj.color = row.querySelector('.step-color-val')?.value || '#ffffff';
+          }
+          if (stepAction === 'brightness') {
+            stepObj.brightness = parseInt(row.querySelector('.step-bri-val')?.value, 10) || 50;
+          }
+          base.scene_steps.push({
+            ...stepObj,
             skip_if_already: true,
           });
         });

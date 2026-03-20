@@ -51,9 +51,11 @@ type SceneStep struct {
 	DeviceMAC     string `json:"device_mac"`
 	DeviceName    string `json:"device_name"`
 	DeviceModel   string `json:"device_model"`
-	Action        string `json:"action"`          // "on" | "off" | "toggle"
+	Action        string `json:"action"`           // "on" | "off" | "toggle" | "color" | "brightness"
+	Color         string `json:"color,omitempty"`  // "#rrggbb" — required when Action == "color"
+	Brightness    int    `json:"brightness,omitempty"` // 1-100 — required when Action == "brightness"
 	DelayBefore   int    `json:"delay_before_sec"` // seconds to wait before executing this step
-	SkipIfAlready bool   `json:"skip_if_already"` // skip if device is already in target state
+	SkipIfAlready bool   `json:"skip_if_already"`  // skip if device is already in target state
 }
 
 // Automation is the root struct stored in JSON.
@@ -728,8 +730,28 @@ func (sch *AutomationScheduler) runScene(ctx context.Context, a Automation) erro
 		}
 
 		sch.logger.Step("Scene step %d: %s %q", idx+1, step.Action, step.DeviceName)
-		if err := sch.applyAction(ctx, client, step.DeviceMAC, step.DeviceModel, step.DeviceName, step.Action); err != nil {
-			sch.logger.Error("Scene step %d failed for %q: %v", idx+1, step.DeviceName, err)
+		var stepErr error
+		switch step.Action {
+		case "color":
+			clr := step.Color
+			if clr == "" {
+				clr = "#ffffff"
+			}
+			stepErr = client.SetColor(ctx, step.DeviceMAC, step.DeviceModel, clr)
+		case "brightness":
+			bri := step.Brightness
+			if bri < 1 {
+				bri = 1
+			}
+			if bri > 100 {
+				bri = 100
+			}
+			stepErr = client.SetBrightness(ctx, step.DeviceMAC, step.DeviceModel, bri)
+		default:
+			stepErr = sch.applyAction(ctx, client, step.DeviceMAC, step.DeviceModel, step.DeviceName, step.Action)
+		}
+		if stepErr != nil {
+			sch.logger.Error("Scene step %d failed for %q: %v", idx+1, step.DeviceName, stepErr)
 			// Continue with the rest of the steps.
 		} else {
 			sch.logger.Step("Scene step %d: %q → %s ✓", idx+1, step.DeviceName, step.Action)

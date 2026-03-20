@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -325,6 +326,70 @@ func (c *WyzeClient) SetBrightness(ctx context.Context, mac, model string, brigh
 		}
 	}
 	return err
+}
+
+// SetColor sets the RGB color of a color-capable bulb (e.g. WLPA19C).
+// hexColor must be "#RRGGBB". Wyze uses P1507 (hue 0-360) + P1508 (saturation 0-100).
+func (c *WyzeClient) SetColor(ctx context.Context, mac, model, hexColor string) error {
+	if !c.IsConfigured() {
+		return fmt.Errorf("wyze credentials not configured")
+	}
+	h, s, _ := hexToHSL(hexColor)
+	props := []map[string]string{
+		{"pid": "P1507", "pvalue": fmt.Sprintf("%d", h)},
+		{"pid": "P1508", "pvalue": fmt.Sprintf("%d", s)},
+	}
+	token, err := c.ensureToken(ctx)
+	if err != nil {
+		return err
+	}
+	err = c.setPropertyList(ctx, token, mac, model, props)
+	if err != nil && isAuthErr(err) {
+		if lerr := c.login(ctx); lerr == nil {
+			err = c.setPropertyList(ctx, c.accessToken, mac, model, props)
+		}
+	}
+	return err
+}
+
+// hexToHSL converts "#RRGGBB" → hue [0,360], saturation [0,100], lightness [0,100].
+func hexToHSL(hex string) (h, s, l int) {
+	hex = strings.TrimPrefix(strings.TrimSpace(hex), "#")
+	if len(hex) != 6 {
+		return 0, 0, 100 // default: white
+	}
+	var rv, gv, bv uint64
+	fmt.Sscanf(hex[0:2], "%x", &rv)
+	fmt.Sscanf(hex[2:4], "%x", &gv)
+	fmt.Sscanf(hex[4:6], "%x", &bv)
+	rf, gf, bf := float64(rv)/255, float64(gv)/255, float64(bv)/255
+
+	maxC := math.Max(rf, math.Max(gf, bf))
+	minC := math.Min(rf, math.Min(gf, bf))
+	delta := maxC - minC
+	lf := (maxC + minC) / 2
+
+	var hf, sf float64
+	if delta != 0 {
+		if lf < 0.5 {
+			sf = delta / (maxC + minC)
+		} else {
+			sf = delta / (2 - maxC - minC)
+		}
+		switch maxC {
+		case rf:
+			hf = (gf - bf) / delta
+			if gf < bf {
+				hf += 6
+			}
+		case gf:
+			hf = (bf-rf)/delta + 2
+		default:
+			hf = (rf-gf)/delta + 4
+		}
+		hf *= 60
+	}
+	return int(math.Round(hf)), int(math.Round(sf * 100)), int(math.Round(lf * 100))
 }
 
 func (c *WyzeClient) setPropertyList(ctx context.Context, token, mac, model string, props []map[string]string) error {
