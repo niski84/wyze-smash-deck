@@ -4,6 +4,8 @@
 
 # Sensitive data (never commit)
 .env
+.env.*
+!.env.example
 data/wyzeferal-settings.json
 data/wyzeferal-devices.json
 data/wyzeferal-automations.json
