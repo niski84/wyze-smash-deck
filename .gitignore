@@ -1,0 +1,17 @@
+# Binary
+wyze-smash-deck
+wyzeferal
+
+# Sensitive data (never commit)
+.env
+data/wyzeferal-settings.json
+data/wyzeferal-devices.json
+data/wyzeferal-automations.json
+data/wyzeferal.log
+
+# Logs and runtime
+*.log
+*.pid
+
+# Go
+vendor/

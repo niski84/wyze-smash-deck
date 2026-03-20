@@ -1,0 +1,1172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Wyze Feral Smash Deck</title>
+  <style>
+    :root {
+      --bg: #080a10;
+      --card: #1a1a1a;
+      --card-bg: #1a1a1a;
+      --border: #2a324d;
+      --accent: #d41919;
+      --text: #eee;
+      --muted: #aaa;
+      --ok: #7CFC95;
+      --hero-border: #3b4a78;
+      --input-bg: #1e1e1e;
+      --input-border: #444;
+      --input-color: #eee;
+      --body-bg-1: #1a1e30;
+      --body-bg-2: #0d101a;
+      --body-bg-3: #080a10;
+    }
+    /* Light theme overrides */
+    body.light {
+      --bg: #f0f2f7;
+      --card: #ffffff;
+      --card-bg: #ffffff;
+      --border: #c8d0e0;
+      --accent: #c0101a;
+      --text: #1a1a2e;
+      --muted: #555;
+      --ok: #1a7a42;
+      --hero-border: #8aa0c8;
+      --input-bg: #fff;
+      --input-border: #bcc5d8;
+      --input-color: #1a1a2e;
+      --body-bg-1: #d8e0f0;
+      --body-bg-2: #e8eef8;
+      --body-bg-3: #f0f2f7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Trebuchet MS", Arial, sans-serif;
+      margin: 0;
+      padding: 24px;
+      background: radial-gradient(circle at top, var(--body-bg-1) 0%, var(--body-bg-2) 45%, var(--body-bg-3) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      transition: background 0.2s, color 0.2s;
+    }
+    .device-name {
+      display: inline-block;
+      margin-bottom: 14px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 2px solid #2a324d;
+      background: linear-gradient(180deg, #151a2c 0%, #0f1422 100%);
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      font-size: 1.15rem;
+    }
+    .theme-hero {
+      margin: 0 0 14px 0;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px dashed var(--hero-border);
+      background: rgba(23, 30, 50, 0.55);
+      color: #c9d2f2;
+      font-size: 13px;
+      max-width: 900px;
+    }
+    .tabs { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    .tab-btn {
+      position: relative;
+      overflow: hidden;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 2px solid #1a1a1a;
+      background: linear-gradient(180deg, #ff5e5e 0%, #d41919 100%);
+      color: #fff;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      box-shadow: inset 0 2px 0 rgba(255,255,255,0.24), inset 0 -3px 0 rgba(0,0,0,0.35), 0 4px 0 #6f0d0d;
+      transition: transform 0.08s ease, filter 0.12s ease;
+    }
+    .tab-btn.active {
+      filter: brightness(1.1);
+      transform: translateY(1px);
+      box-shadow: inset 0 2px 0 rgba(255,255,255,0.3), inset 0 -3px 0 rgba(0,0,0,0.35), 0 3px 0 #6f0d0d;
+    }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+    .device-card, .auto-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      background: rgba(0,0,0,.2);
+    }
+    .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 6px; background: #2a3142; margin-right: 6px; }
+    .badge.sched { background: #2d4a6f; }
+    .badge.manual { background: #4a3d2d; }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    input, select, textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--input-border);
+      background: var(--input-bg);
+      color: var(--input-color);
+      margin-bottom: 10px;
+    }
+    /* Theme toggle button */
+    #themeToggleBtn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      transition: background 0.15s;
+    }
+    #themeToggleBtn:hover { background: rgba(128,128,128,0.15); }
+    /* Device search */
+    #deviceSearchInput {
+      flex: 1;
+      min-width: 160px;
+      max-width: 300px;
+      margin-bottom: 0;
+      padding: 7px 10px;
+      font-size: 13px;
+    }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+    .row > * { flex: 1; min-width: 140px; }
+    button.primary {
+      position: relative;
+      overflow: hidden;
+      border: 2px solid #1a1a1a;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #ffd24f 0%, #f49a17 100%);
+      color: #201607;
+      padding: 10px 18px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      box-shadow: inset 0 2px 0 rgba(255,255,255,0.3), inset 0 -3px 0 rgba(0,0,0,0.3), 0 4px 0 #9a5f0b;
+      transition: transform 0.08s ease, filter 0.12s ease;
+    }
+    button.primary:hover { filter: brightness(1.06); }
+    button.primary:active {
+      transform: translateY(1px);
+      box-shadow: inset 0 2px 0 rgba(255,255,255,0.3), inset 0 -2px 0 rgba(0,0,0,0.3), 0 3px 0 #9a5f0b;
+    }
+    button.secondary {
+      background: transparent;
+      border: 1px solid #555;
+      color: #eee;
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .modal-bg {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.65);
+      z-index: 50;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 24px;
+      overflow-y: auto;
+    }
+    .modal-bg.open { display: flex; }
+    .muted { color: #aaa; font-size: 13px; }
+    /* .modal defined under .dimmer-extra */
+    .step-row {
+      display: grid;
+      grid-template-columns: 1fr 90px 80px 36px;
+      gap: 8px;
+      align-items: end;
+      margin-bottom: 8px;
+    }
+    @media (max-width: 600px) {
+      .step-row { grid-template-columns: 1fr; }
+    }
+    pre.log {
+      font-size: 11px;
+      background: #0a0c10;
+      padding: 12px;
+      border-radius: 8px;
+      max-height: 320px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .err { color: #ff8b7a; }
+    .ok { color: var(--ok); }
+
+    /* Device dashboard — grid vs list */
+    .device-toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+    .view-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+    .view-toggle button {
+      padding: 8px 14px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .view-toggle button.active { background: #2a3142; color: var(--text); }
+
+    .device-grid-wrap.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+    .device-grid-wrap.list { display: flex; flex-direction: column; gap: 8px; }
+
+    .device-card, .device-row {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      background: var(--card-bg);
+    }
+    .device-row {
+      display: grid;
+      grid-template-columns: minmax(180px, 1.2fr) minmax(120px, 0.8fr) auto;
+      gap: 12px;
+      align-items: center;
+    }
+    @media (max-width: 700px) {
+      .device-row { grid-template-columns: 1fr; }
+    }
+
+    .device-label {
+      font-size: 1.05rem;
+      font-weight: 700;
+      cursor: text;
+      padding: 4px 6px;
+      margin: -4px -6px;
+      border-radius: 6px;
+      outline: none;
+      border: 1px dashed transparent;
+    }
+    .device-label:hover { border-color: #3a4558; background: rgba(255,255,255,.03); }
+    .device-label.editing {
+      border: 1px solid #f49a17;
+      background: #1e1e1e;
+      cursor: text;
+    }
+    .device-meta { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .device-meta code { font-size: 10px; opacity: 0.85; }
+
+    /* iOS-style power toggle */
+    .pwr-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+    .pwr-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .pwr-toggle {
+      position: relative;
+      width: 52px;
+      height: 30px;
+      flex-shrink: 0;
+    }
+    .pwr-toggle input {
+      opacity: 0;
+      width: 0; height: 0;
+    }
+    .pwr-slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background: #2a3142;
+      border-radius: 999px;
+      transition: background 0.2s;
+      border: 1px solid #3d4a63;
+    }
+    .pwr-slider::before {
+      position: absolute;
+      content: "";
+      height: 24px;
+      width: 24px;
+      left: 3px;
+      bottom: 2px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 4px rgba(0,0,0,.4);
+    }
+    .pwr-toggle input:checked + .pwr-slider { background: linear-gradient(180deg, #5cdb8c 0%, #3aa86a 100%); border-color: #4a9d6a; }
+    .pwr-toggle input:checked + .pwr-slider::before { transform: translateX(22px); }
+    .pwr-toggle input:focus-visible + .pwr-slider { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .dimmer-extra { margin-top: 10px; }
+    .dimmer-extra input[type="range"] { width: 100%; margin-bottom: 2px; accent-color: #f49a17; }
+    .dimmer-extra .brightness-row { display: flex; align-items: center; gap: 8px; }
+    .dimmer-extra .brightness-val { font-size: 12px; color: var(--muted); min-width: 28px; text-align: right; }
+    .modal { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; max-width: 640px; width: 100%; padding: 20px; margin-top: 20px; }
+    .online-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+    .online-dot.on { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+    .online-dot.off { background: #555; }
+  </style>
+</head>
+<body>
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+    <div class="device-name" data-testid="page-title" style="margin-bottom:0;">Wyze Feral Smash Deck</div>
+    <button type="button" id="themeToggleBtn" data-testid="theme-toggle" title="Toggle dark/light theme">🌙 Dark</button>
+  </div>
+  <div class="theme-hero">
+    Automations with <strong>manual</strong> vs <strong>scheduled</strong> runs, scene <strong>delays</strong> (stagger), and advanced calendar options.
+  </div>
+
+  <div class="tabs">
+    <button type="button" class="tab-btn active" data-tab="switches" data-testid="tab-switches">Switches</button>
+    <button type="button" class="tab-btn" data-tab="automations" data-testid="tab-automations">Automations</button>
+    <button type="button" class="tab-btn" data-tab="settings" data-testid="tab-settings">Settings &amp; logs</button>
+  </div>
+
+  <section id="panel-switches" class="panel active">
+    <div class="card">
+      <div class="device-toolbar">
+        <button type="button" class="primary" id="refreshDevicesBtn" data-testid="refresh-devices">Refresh</button>
+        <input type="search" id="deviceSearchInput" placeholder="🔍 Search devices…" data-testid="device-search-input" aria-label="Search devices" />
+        <div class="view-toggle" role="group" aria-label="Layout">
+          <button type="button" id="viewGridBtn" class="active" data-view="grid" data-testid="view-grid">Grid</button>
+          <button type="button" id="viewListBtn" data-view="list" data-testid="view-list">List</button>
+        </div>
+        <span id="deviceStatus" class="muted"></span>
+      </div>
+      <p class="muted" style="font-size:12px;margin:0 0 10px 0;">
+        Names are <strong>local labels</strong> (editable); device identity is the <strong>ID</strong> below. Wyze app renames won’t confuse automations.
+      </p>
+      <div id="deviceGrid" class="device-grid-wrap grid" data-testid="device-grid"></div>
+    </div>
+  </section>
+
+  <section id="panel-automations" class="panel">
+    <div class="card row" style="align-items:center;">
+      <button type="button" class="primary" id="newAutoBtn" data-testid="new-automation">New automation</button>
+      <span class="muted">Choose <strong>Run only</strong> vs <strong>Scheduled</strong> first, then workflow type.</span>
+    </div>
+    <div class="grid" id="autoGrid" data-testid="automation-grid"></div>
+  </section>
+
+  <section id="panel-settings" class="panel">
+    <div class="card">
+      <h3 style="margin-top:0;">Appearance</h3>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <span style="font-size:13px;color:var(--muted);">Theme</span>
+        <button type="button" id="themeToggleBtnSettings" data-testid="theme-toggle-settings" style="padding:8px 20px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-weight:600;">
+          Switch to Light mode
+        </button>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;">Wyze API</h3>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 12px 0;">
+        Wyze account credentials + developer API keys from
+        <a href="https://developer-api-console.wyze.com/#/apikey/view" target="_blank" rel="noopener" style="color:#7aadff;">developer-api-console.wyze.com</a>.
+        Leave a field blank to keep the existing saved value.
+      </p>
+      <div class="row">
+        <div>
+          <label for="cfgEmail">Wyze account email</label>
+          <input id="cfgEmail" type="email" data-testid="settings-email" autocomplete="email" placeholder="your@email.com" />
+        </div>
+        <div>
+          <label for="cfgPassword">Wyze account password</label>
+          <input id="cfgPassword" type="password" data-testid="settings-password" placeholder="leave blank to keep saved" autocomplete="current-password" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="cfgKeyId">Developer Key ID</label>
+          <input id="cfgKeyId" data-testid="settings-key-id" autocomplete="off" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+        </div>
+        <div>
+          <label for="cfgApiKey">Developer API key</label>
+          <input id="cfgApiKey" type="password" data-testid="settings-api-key" placeholder="leave blank to keep saved" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="cfgPort">Server port (requires restart)</label>
+          <input id="cfgPort" data-testid="settings-port" placeholder="8082" />
+        </div>
+      </div>
+      <button type="button" class="primary" id="saveSettingsBtn" data-testid="save-settings">Save settings</button>
+      <button type="button" class="secondary" id="testConnBtn" data-testid="test-connection" style="margin-left:8px;">Test connection</button>
+      <span id="settingsMsg"></span>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;">Activity log</h3>
+      <button type="button" class="secondary" id="refreshLogBtn" data-testid="refresh-log">Refresh log</button>
+      <pre class="log" id="logPre" data-testid="activity-log"></pre>
+    </div>
+  </section>
+
+  <div class="modal-bg" id="autoModal" role="dialog" aria-modal="true">
+    <div class="modal">
+      <h3 style="margin-top:0;">Create / edit automation</h3>
+      <input type="hidden" id="editId" />
+
+      <label for="autoName">Name</label>
+      <input id="autoName" data-testid="auto-name" placeholder="e.g. Bed shutdown" />
+
+      <div class="row">
+        <div>
+          <label for="runMode">When it runs</label>
+          <select id="runMode" data-testid="auto-run-mode">
+            <option value="manual">Run only (manual / button)</option>
+            <option value="scheduled">Scheduled (calendar)</option>
+          </select>
+        </div>
+        <div>
+          <label for="autoType">Workflow type</label>
+          <select id="autoType" data-testid="auto-type">
+            <option value="scene">Scene — ordered steps + delay before each step</option>
+            <option value="scheduled">Simple — same action on multiple devices</option>
+            <option value="timer">Timer — on for N minutes then off</option>
+            <option value="safety">Safety — turn off if still on (run to check)</option>
+          </select>
+        </div>
+      </div>
+      <p class="muted" style="font-size:12px;" id="typeHint"></p>
+
+      <div id="scheduleBlock" style="display:none;">
+        <h4>Schedule</h4>
+        <div class="row">
+          <div>
+            <label for="schedTime">Time (24h)</label>
+            <input id="schedTime" placeholder="22:30" data-testid="sched-time" />
+          </div>
+          <div>
+            <label for="schedTz">Timezone</label>
+            <select id="schedTz" data-testid="sched-tz">
+              <option value="">Local server</option>
+              <option value="America/Los_Angeles">America/Los_Angeles</option>
+              <option value="America/Denver">America/Denver</option>
+              <option value="America/Chicago">America/Chicago</option>
+              <option value="America/New_York">America/New_York</option>
+              <option value="UTC">UTC</option>
+            </select>
+          </div>
+        </div>
+        <label>Days (empty = every day)</label>
+        <div class="row" id="dowRow" style="align-items:center;">
+          <label style="display:flex;align-items:center;gap:6px;width:auto;"><input type="checkbox" value="0" class="dow" /> Sun</label>
+          <label style="display:flex;align-items:center;gap:6px;width:auto;"><input type="checkbox" value="1" class="dow" /> Mon</label>
+          <label style="display:flex;align-items:center;gap:6px;width:auto;"><input type="checkbox" value="2" class="dow" /> Tue</label>
+          <label style="display:flex;align-items:center;gap:6px;width:auto;"><input type="checkbox" value="3" class="dow" /> Wed</label>
+          <label style="display:flex;align-items:center;gap:6px;width:auto;"><input type="checkbox" value="4" class="dow" /> Thu</label>
+          <label style="display:flex;align-items:center;gap:6px;width:auto;"><input type="checkbox" value="5" class="dow" /> Fri</label>
+          <label style="display:flex;align-items:center;gap:6px;width:auto;"><input type="checkbox" value="6" class="dow" /> Sat</label>
+        </div>
+        <div class="row">
+          <div>
+            <label for="schedEnd">End date (optional)</label>
+            <input id="schedEnd" placeholder="YYYY-MM-DD" data-testid="sched-end" />
+          </div>
+          <div>
+            <label style="display:flex;align-items:center;gap:8px;margin-top:22px;width:auto;">
+              <input type="checkbox" id="schedSkipWknd" data-testid="sched-skip-weekends" /> Skip weekends
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div id="simpleBlock" style="display:none;">
+        <h4>Devices &amp; stagger</h4>
+        <label for="simpleAction">Action</label>
+        <select id="simpleAction" data-testid="simple-action">
+          <option value="off">Off</option>
+          <option value="on">On</option>
+          <option value="toggle">Toggle</option>
+        </select>
+        <label for="staggerSec">Seconds between devices (stagger)</label>
+        <input type="number" id="staggerSec" min="0" value="5" data-testid="stagger-sec" />
+        <label>Devices</label>
+        <select id="simpleDevices" multiple size="5" data-testid="simple-devices" style="min-height:120px;"></select>
+        <p class="muted" style="font-size:12px;">Hold Ctrl/Cmd to select multiple. Order follows selection order in some browsers — use Scene for strict order.</p>
+      </div>
+
+      <div id="sceneBlock" style="display:none;">
+        <h4>Scene steps</h4>
+        <p class="muted" style="font-size:12px;">Set <strong>Delay before (sec)</strong> to stagger (e.g. 5s between each off).</p>
+        <div id="sceneSteps"></div>
+        <button type="button" class="secondary" id="addStepBtn" data-testid="add-scene-step">+ Add step</button>
+      </div>
+
+      <div id="timerBlock" style="display:none;">
+        <label for="onForMin">On for (minutes) then off</label>
+        <input type="number" id="onForMin" min="1" value="30" data-testid="timer-minutes" />
+        <label for="timerStagger">Stagger (sec) between devices when turning on/off</label>
+        <input type="number" id="timerStagger" min="0" value="0" data-testid="timer-stagger" />
+        <label>Devices</label>
+        <select id="timerDevices" multiple size="4" data-testid="timer-devices"></select>
+      </div>
+
+      <div id="safetyBlock" style="display:none;">
+        <label for="safetyMin">Turn off if on (minutes threshold — informational)</label>
+        <input type="number" id="safetyMin" min="1" value="60" data-testid="safety-minutes" />
+        <label for="safetyStagger">Stagger (sec) between devices</label>
+        <input type="number" id="safetyStagger" min="0" value="0" data-testid="safety-stagger" />
+        <label>Devices to check</label>
+        <select id="safetyDevices" multiple size="4" data-testid="safety-devices"></select>
+      </div>
+
+      <div class="row" style="margin-top:16px;">
+        <button type="button" class="primary" id="saveAutoBtn" data-testid="save-automation">Save</button>
+        <button type="button" class="secondary" id="cancelModalBtn">Cancel</button>
+      </div>
+      <p id="autoFormErr" class="err"></p>
+    </div>
+  </div>
+
+  <script>
+    console.debug('[SmashDeck] UI loaded');
+    const $ = (id) => document.getElementById(id);
+
+    async function api(method, path, body) {
+      const opt = { method, headers: {} };
+      if (body !== undefined) {
+        opt.headers['Content-Type'] = 'application/json';
+        opt.body = JSON.stringify(body);
+      }
+      const res = await fetch(path, opt);
+      const j = await res.json();
+      if (!j.success) throw new Error(j.error || 'API error');
+      return j.data;
+    }
+
+    let devicesCache = [];
+
+    function deviceIsOn(dev) {
+      return (
+        dev.switch_state === 1 ||
+        (dev.device_params && dev.device_params.switch_state === 1)
+      );
+    }
+
+    function getDeviceView() {
+      return localStorage.getItem('wyzeferal.deviceView') || 'grid';
+    }
+    function setDeviceView(mode) {
+      localStorage.setItem('wyzeferal.deviceView', mode);
+      const wrap = $('deviceGrid');
+      wrap.classList.remove('grid', 'list');
+      wrap.classList.add(mode === 'list' ? 'list' : 'grid');
+      $('viewGridBtn').classList.toggle('active', mode !== 'list');
+      $('viewListBtn').classList.toggle('active', mode === 'list');
+    }
+
+    function powerControlHTML(dev) {
+      const on = deviceIsOn(dev);
+      const cat = dev.ui_category || 'power_switch';
+      if (cat === 'generic') {
+        return '<span class="muted" data-testid="device-no-control">No power control in Smash Deck for this type yet.</span>';
+      }
+      const id = escapeAttr(dev.id || dev.mac);
+      const model = escapeAttr(dev.product_model || '');
+      let extra = '';
+      if (cat === 'dimmer') {
+        const bval = typeof dev.brightness === 'number' ? dev.brightness : 50;
+        extra = `
+          <div class="dimmer-extra">
+            <div class="brightness-row">
+              <span class="muted" style="font-size:11px;">☀ Brightness</span>
+              <input type="range" min="1" max="100" value="${bval}"
+                data-device-id="${id}" data-model="${model}" data-role="brightness"
+                data-testid="brightness-slider" aria-label="Brightness" />
+              <span class="brightness-val">${bval}%</span>
+            </div>
+          </div>`;
+      }
+      return `
+        <div class="pwr-row">
+          <span class="pwr-label">Power</span>
+          <label class="pwr-toggle" data-testid="power-toggle">
+            <input type="checkbox" ${on ? 'checked' : ''} data-device-id="${id}" data-model="${model}" data-role="power" aria-label="Toggle power" />
+            <span class="pwr-slider"></span>
+          </label>
+        </div>${extra}`;
+    }
+
+    function bindPowerToggles(root) {
+      root.querySelectorAll('input[data-role="power"]').forEach((inp) => {
+        inp.addEventListener('change', async () => {
+          const id = inp.getAttribute('data-device-id');
+          const model = inp.getAttribute('data-model');
+          const wantOn = inp.checked;
+          console.debug('[SmashDeck] power toggle', id, wantOn);
+          try {
+            await api('POST', '/api/devices/' + encodeURIComponent(id) + '/control', { model, on: wantOn });
+            await loadDevices();
+          } catch (err) {
+            console.error('[SmashDeck] toggle failed', err);
+            inp.checked = !wantOn;
+            alert(err.message || String(err));
+          }
+        });
+      });
+    }
+
+    let brightnessTimers = {};
+    function bindBrightnessSliders(root) {
+      root.querySelectorAll('input[data-role="brightness"]').forEach((slider) => {
+        const valEl = slider.closest('.dimmer-extra')?.querySelector('.brightness-val');
+        slider.addEventListener('input', () => {
+          if (valEl) valEl.textContent = slider.value + '%';
+        });
+        slider.addEventListener('change', () => {
+          const id = slider.getAttribute('data-device-id');
+          const model = slider.getAttribute('data-model');
+          const brightness = parseInt(slider.value, 10);
+          console.debug('[SmashDeck] brightness', id, brightness);
+          clearTimeout(brightnessTimers[id]);
+          brightnessTimers[id] = setTimeout(async () => {
+            try {
+              await api('POST', '/api/devices/' + encodeURIComponent(id) + '/brightness', { model, brightness });
+              console.debug('[SmashDeck] brightness set', id, brightness);
+            } catch (err) {
+              console.error('[SmashDeck] brightness failed', err);
+            }
+          }, 400);
+        });
+      });
+    }
+
+    function startRename(span, dev) {
+      const id = dev.id || dev.mac;
+      const cur = span.textContent;
+      span.contentEditable = 'true';
+      span.classList.add('editing');
+      span.focus();
+      const range = document.createRange();
+      range.selectNodeContents(span);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      let committed = false;
+      const done = async (save) => {
+        if (committed) return;
+        committed = true;
+        span.contentEditable = 'false';
+        span.classList.remove('editing');
+        span.onkeydown = null;
+        span.onblur = null;
+        let next = span.textContent.trim();
+        if (!save) {
+          span.textContent = cur;
+          return;
+        }
+        try {
+          await api('PUT', '/api/devices/' + encodeURIComponent(id) + '/name', {
+            local_display_name: next,
+          });
+          console.debug('[SmashDeck] renamed', id, next);
+          await loadDevices();
+        } catch (e) {
+          console.error(e);
+          span.textContent = cur;
+          alert(e.message || String(e));
+        }
+      };
+
+      span.onkeydown = (ev) => {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          span.onblur = null;
+          void done(true);
+        } else if (ev.key === 'Escape') {
+          ev.preventDefault();
+          span.onblur = null;
+          void done(false);
+        }
+      };
+      span.onblur = () => {
+        setTimeout(() => {
+          if (!committed) void done(true);
+        }, 80);
+      };
+    }
+
+    function renderDeviceCard(dev) {
+      const el = document.createElement('div');
+      el.className = 'device-card';
+      el.dataset.testid = 'device-card';
+      el.dataset.deviceId = dev.id || dev.mac;
+      const name = dev.display_name || dev.id;
+      const wyze = dev.wyze_nickname ? `Wyze: ${escapeHtml(dev.wyze_nickname)}` : '';
+      el.innerHTML = `
+        <div
+          class="device-label"
+          data-testid="device-name"
+          title="Click to rename (Enter saves, Esc cancels)"
+        >${escapeHtml(name)}</div>
+        <div class="device-meta">
+          <span class="online-dot ${dev.is_online ? 'on' : 'off'}" aria-hidden="true"></span>
+          ${escapeHtml(dev.product_type || 'device')} · <code data-testid="device-id">${escapeHtml(dev.id || dev.mac)}</code>
+        </div>
+        ${wyze ? `<div class="device-meta">${wyze}</div>` : ''}
+        ${powerControlHTML(dev)}`;
+      el.querySelector('.device-label').addEventListener('click', (ev) => {
+        if (ev.target.contentEditable === 'true') return;
+        startRename(ev.target, dev);
+      });
+      bindPowerToggles(el);
+      bindBrightnessSliders(el);
+      return el;
+    }
+
+    function renderDeviceRow(dev) {
+      const el = document.createElement('div');
+      el.className = 'device-row';
+      el.dataset.testid = 'device-row';
+      el.dataset.deviceId = dev.id || dev.mac;
+      const name = dev.display_name || dev.id;
+      const on = deviceIsOn(dev);
+      el.innerHTML = `
+        <div>
+          <div class="device-label" data-testid="device-name">${escapeHtml(name)}</div>
+          <div class="device-meta">
+            <span class="online-dot ${dev.is_online ? 'on' : 'off'}"></span>
+            ${escapeHtml(dev.product_type || '')} · <code data-testid="device-id">${escapeHtml(dev.id || dev.mac)}</code>
+          </div>
+        </div>
+        <div>${powerControlHTML(dev)}</div>
+        <div style="text-align:right;"><span class="badge" data-testid="power-badge">${on ? 'ON' : 'OFF'}</span></div>`;
+      el.querySelector('.device-label').addEventListener('click', (ev) => {
+        if (ev.target.contentEditable === 'true') return;
+        startRename(ev.target, dev);
+      });
+      bindPowerToggles(el);
+      bindBrightnessSliders(el);
+      return el;
+    }
+
+    function getSearchQuery() {
+      return ($('deviceSearchInput').value || '').trim().toLowerCase();
+    }
+
+    function renderDevices() {
+      const wrap = $('deviceGrid');
+      wrap.innerHTML = '';
+      const listMode = getDeviceView() === 'list';
+      const q = getSearchQuery();
+      const filtered = q
+        ? devicesCache.filter((d) => {
+            const name = (d.display_name || d.wyze_nickname || d.id || '').toLowerCase();
+            const type = (d.product_type || '').toLowerCase();
+            return name.includes(q) || type.includes(q);
+          })
+        : devicesCache;
+      filtered.forEach((dev) => {
+        wrap.appendChild(listMode ? renderDeviceRow(dev) : renderDeviceCard(dev));
+      });
+      const total = devicesCache.length;
+      const shown = filtered.length;
+      if (q && total > 0) {
+        $('deviceStatus').textContent = `${shown} of ${total} device(s) match "${q}"`;
+      }
+    }
+
+    async function loadDevices() {
+      $('deviceStatus').className = '';
+      try {
+        const d = await api('GET', '/api/devices');
+        devicesCache = d.devices || [];
+        const ok = d.configured !== false;
+        $('deviceStatus').textContent = ok
+          ? `${devicesCache.length} device(s)`
+          : 'Wyze API not configured — add keys in Settings';
+        console.debug('[SmashDeck] devices', devicesCache.length, d.configured);
+      } catch (e) {
+        devicesCache = [];
+        const msg = e && e.message ? e.message : String(e);
+        $('deviceStatus').textContent = 'Wyze list failed: ' + msg;
+        $('deviceStatus').className = 'err';
+        console.error('[SmashDeck] loadDevices failed', e);
+      }
+      setDeviceView(getDeviceView());
+      renderDevices();
+      fillDeviceSelects();
+    }
+
+    $('viewGridBtn').onclick = () => {
+      setDeviceView('grid');
+      renderDevices();
+    };
+    $('viewListBtn').onclick = () => {
+      setDeviceView('list');
+      renderDevices();
+    };
+
+    $('deviceSearchInput').addEventListener('input', () => renderDevices());
+    $('deviceSearchInput').addEventListener('search', () => renderDevices());
+
+    // ─── Theme toggle ─────────────────────────────────────────────────────────
+    function applyTheme(light) {
+      document.body.classList.toggle('light', !!light);
+      const label = light ? '☀ Light' : '🌙 Dark';
+      const switchTo = light ? 'Switch to Dark mode' : 'Switch to Light mode';
+      const tb = $('themeToggleBtn');
+      if (tb) tb.textContent = label;
+      const ts = $('themeToggleBtnSettings');
+      if (ts) ts.textContent = switchTo;
+    }
+    function isLightTheme() {
+      return localStorage.getItem('wyzeferal.theme') === 'light';
+    }
+    function toggleTheme() {
+      const next = !isLightTheme();
+      localStorage.setItem('wyzeferal.theme', next ? 'light' : 'dark');
+      applyTheme(next);
+    }
+    $('themeToggleBtn').onclick = toggleTheme;
+    const tbs = $('themeToggleBtnSettings');
+    if (tbs) tbs.onclick = toggleTheme;
+    // Apply saved theme immediately
+    applyTheme(isLightTheme());
+
+    function escapeHtml(s) {
+      if (!s) return '';
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    }
+    function escapeAttr(s) {
+      if (!s) return '';
+      return String(s).replace(/"/g, '&quot;');
+    }
+
+    function fillDeviceSelects() {
+      const opts = devicesCache.map((d) => {
+        const id = d.id || d.mac;
+        const nm = d.display_name || id;
+        return `<option value="${escapeAttr(id)}" data-model="${escapeAttr(d.product_model)}" data-name="${escapeAttr(nm)}">${escapeHtml(nm)}</option>`;
+      }).join('');
+      ['simpleDevices', 'timerDevices', 'safetyDevices'].forEach((id) => {
+        const sel = $(id);
+        if (!sel) return;
+        sel.innerHTML = opts;
+      });
+    }
+
+    function syncTypePanels() {
+      const t = $('autoType').value;
+      const rm = $('runMode').value;
+      $('scheduleBlock').style.display = rm === 'scheduled' ? 'block' : 'none';
+      $('sceneBlock').style.display = t === 'scene' ? 'block' : 'none';
+      $('simpleBlock').style.display = t === 'scheduled' ? 'block' : 'none';
+      $('timerBlock').style.display = t === 'timer' ? 'block' : 'none';
+      $('safetyBlock').style.display = t === 'safety' ? 'block' : 'none';
+      const hints = {
+        scene: 'Each step has “Delay before (sec)” — wait that long, then change the device. Chain 5s, 5s, 5s for staggered shutdown.',
+        scheduled: 'Same action on every selected device in order. “Stagger” adds seconds between each device.',
+        timer: 'All devices ON → wait N min → then OFF. Optional stagger for both phases.',
+        safety: 'When run: turns OFF each device that is still on (optional stagger between devices).',
+      };
+      $('typeHint').textContent = hints[t] || '';
+    }
+
+    $('autoType').onchange = syncTypePanels;
+    $('runMode').onchange = syncTypePanels;
+
+    function addSceneStepRow(mac, model, name, action, delay) {
+      const wrap = $('sceneSteps');
+      const row = document.createElement('div');
+      row.className = 'step-row';
+      row.innerHTML = `
+        <div>
+          <label>Device</label>
+          <select class="step-dev">${deviceOptionsHtml()}</select>
+        </div>
+        <div>
+          <label>Delay before (s)</label>
+          <input type="number" class="step-delay" min="0" value="${delay != null ? delay : 0}" />
+        </div>
+        <div>
+          <label>Action</label>
+          <select class="step-act">
+            <option value="off">off</option>
+            <option value="on">on</option>
+            <option value="toggle">toggle</option>
+          </select>
+        </div>
+        <div>
+          <button type="button" class="secondary rm-step">×</button>
+        </div>`;
+      row.querySelector('.rm-step').onclick = () => row.remove();
+      const sd = row.querySelector('.step-dev');
+      if (mac) {
+        sd.value = mac;
+        sd.dataset.model = model || '';
+      }
+      row.querySelector('.step-act').value = action || 'off';
+      wrap.appendChild(row);
+    }
+
+    function deviceOptionsHtml() {
+      return devicesCache.map((d) => {
+        const id = d.id || d.mac;
+        const nm = d.display_name || id;
+        return `<option value="${escapeAttr(id)}" data-model="${escapeAttr(d.product_model)}">${escapeHtml(nm)}</option>`;
+      }).join('');
+    }
+
+    $('addStepBtn').onclick = () => addSceneStepRow();
+
+    async function loadAutomations() {
+      const d = await api('GET', '/api/automations');
+      const list = d.automations || [];
+      const grid = $('autoGrid');
+      grid.innerHTML = '';
+      list.forEach((a) => {
+        const card = document.createElement('div');
+        card.className = 'auto-card';
+        card.dataset.testid = 'automation-card';
+        const rm = a.run_mode || (a.schedule ? 'scheduled' : 'manual');
+        const badge = rm === 'scheduled' ? '<span class="badge sched">Scheduled</span>' : '<span class="badge manual">Manual</span>';
+        const next = a.next_run_at ? new Date(a.next_run_at).toLocaleString() : '—';
+        card.innerHTML = `
+          <div><strong>${escapeHtml(a.name)}</strong> ${badge}</div>
+          <div class="muted" style="font-size:12px;">type: ${escapeHtml(a.type)} · enabled: ${a.enabled}</div>
+          <div class="muted" style="font-size:11px;">Next run: ${next}</div>
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="primary run-btn" data-id="${escapeAttr(a.id)}">Run</button>
+            <button type="button" class="secondary edit-btn" data-id="${escapeAttr(a.id)}">Edit</button>
+          </div>`;
+        card.querySelector('.run-btn').onclick = () => runAuto(a.id);
+        card.querySelector('.edit-btn').onclick = () => openEdit(a);
+        grid.appendChild(card);
+      });
+      console.debug('[SmashDeck] automations', list.length);
+    }
+
+    async function runAuto(id) {
+      await api('POST', '/api/automations/' + encodeURIComponent(id) + '/run', {});
+      await loadLog();
+    }
+
+    function openEdit(a) {
+      $('autoModal').classList.add('open');
+      $('editId').value = a.id;
+      $('autoName').value = a.name || '';
+      $('runMode').value = a.run_mode || (a.schedule ? 'scheduled' : 'manual');
+      $('autoType').value = a.type;
+      $('staggerSec').value = a.stagger_between_devices_sec || 0;
+      $('onForMin').value = a.on_for_minutes || 30;
+      $('timerStagger').value = a.stagger_between_devices_sec || 0;
+      $('safetyMin').value = a.safety_max_on_minutes || 60;
+      $('safetyStagger').value = a.stagger_between_devices_sec || 0;
+      if (a.schedule) {
+        $('schedTime').value = a.schedule.time || '';
+        $('schedTz').value = a.schedule.timezone || '';
+        $('schedEnd').value = a.schedule.ends_on_date || '';
+        $('schedSkipWknd').checked = !!a.schedule.skip_weekends;
+        document.querySelectorAll('.dow').forEach((cb) => { cb.checked = (a.schedule.days_of_week || []).includes(parseInt(cb.value, 10)); });
+        $('simpleAction').value = a.schedule.action || 'off';
+      }
+      $('sceneSteps').innerHTML = '';
+      (a.scene_steps || []).forEach((s) => addSceneStepRow(s.device_mac, s.device_model, s.device_name, s.action, s.delay_before_sec));
+      syncTypePanels();
+      const sel = $('simpleDevices');
+      if (sel && (a.device_macs || []).length) {
+        [...sel.options].forEach((o) => { o.selected = (a.device_macs || []).includes(o.value); });
+      }
+      const ts = $('timerDevices');
+      if (ts && (a.device_macs || []).length && a.type === 'timer') {
+        [...ts.options].forEach((o) => { o.selected = (a.device_macs || []).includes(o.value); });
+      }
+      const ss = $('safetyDevices');
+      if (ss && (a.device_macs || []).length && a.type === 'safety') {
+        [...ss.options].forEach((o) => { o.selected = (a.device_macs || []).includes(o.value); });
+      }
+    }
+
+    function collectPayload() {
+      const id = $('editId').value.trim();
+      const name = $('autoName').value.trim();
+      const runMode = $('runMode').value;
+      const typ = $('autoType').value;
+      const base = { name, enabled: true, run_mode: runMode, type: typ };
+      if (id) base.id = id;
+
+      if (runMode === 'scheduled') {
+        const days = [...document.querySelectorAll('.dow:checked')].map((cb) => parseInt(cb.value, 10));
+        base.schedule = {
+          time: $('schedTime').value.trim(),
+          days_of_week: days,
+          timezone: $('schedTz').value || undefined,
+          ends_on_date: $('schedEnd').value.trim() || undefined,
+          skip_weekends: $('schedSkipWknd').checked,
+          action: $('simpleAction').value,
+        };
+      }
+
+      if (typ === 'scene') {
+        base.scene_steps = [];
+        document.querySelectorAll('#sceneSteps .step-row').forEach((row, idx) => {
+          const sel = row.querySelector('.step-dev');
+          const mac = sel.value;
+          const opt = sel.selectedOptions[0];
+          const model = opt ? opt.getAttribute('data-model') : '';
+          const nm = opt ? opt.textContent : '';
+          base.scene_steps.push({
+            order: idx,
+            device_mac: mac,
+            device_model: model,
+            device_name: nm,
+            action: row.querySelector('.step-act').value,
+            delay_before_sec: parseInt(row.querySelector('.step-delay').value, 10) || 0,
+            skip_if_already: true,
+          });
+        });
+      } else if (typ === 'scheduled') {
+        base.stagger_between_devices_sec = parseInt($('staggerSec').value, 10) || 0;
+        const sel = $('simpleDevices');
+        base.device_macs = [];
+        base.device_models = [];
+        base.device_names = [];
+        [...sel.selectedOptions].forEach((o) => {
+          base.device_macs.push(o.value);
+          base.device_models.push(o.getAttribute('data-model') || '');
+          base.device_names.push(o.getAttribute('data-name') || o.textContent);
+        });
+      } else if (typ === 'timer') {
+        base.on_for_minutes = parseInt($('onForMin').value, 10) || 30;
+        base.stagger_between_devices_sec = parseInt($('timerStagger').value, 10) || 0;
+        const sel = $('timerDevices');
+        base.device_macs = [];
+        base.device_models = [];
+        base.device_names = [];
+        [...sel.selectedOptions].forEach((o) => {
+          base.device_macs.push(o.value);
+          base.device_models.push(o.getAttribute('data-model') || '');
+          base.device_names.push(o.getAttribute('data-name') || o.textContent);
+        });
+      } else if (typ === 'safety') {
+        base.safety_max_on_minutes = parseInt($('safetyMin').value, 10) || 60;
+        base.stagger_between_devices_sec = parseInt($('safetyStagger').value, 10) || 0;
+        const sel = $('safetyDevices');
+        base.device_macs = [];
+        base.device_models = [];
+        base.device_names = [];
+        [...sel.selectedOptions].forEach((o) => {
+          base.device_macs.push(o.value);
+          base.device_models.push(o.getAttribute('data-model') || '');
+          base.device_names.push(o.getAttribute('data-name') || o.textContent);
+        });
+      }
+
+      return base;
+    }
+
+    $('saveAutoBtn').onclick = async () => {
+      $('autoFormErr').textContent = '';
+      try {
+        const payload = collectPayload();
+        console.debug('[SmashDeck] save automation', payload);
+        const id = $('editId').value;
+        if (id) {
+          await api('PUT', '/api/automations/' + encodeURIComponent(id), payload);
+        } else {
+          await api('POST', '/api/automations', payload);
+        }
+        $('autoModal').classList.remove('open');
+        await loadAutomations();
+      } catch (e) {
+        $('autoFormErr').textContent = e.message || String(e);
+      }
+    };
+
+    $('newAutoBtn').onclick = () => {
+      $('editId').value = '';
+      $('autoName').value = '';
+      $('runMode').value = 'manual';
+      $('autoType').value = 'scene';
+      $('sceneSteps').innerHTML = '';
+      addSceneStepRow();
+      $('autoModal').classList.add('open');
+      syncTypePanels();
+    };
+    $('cancelModalBtn').onclick = () => $('autoModal').classList.remove('open');
+
+    async function loadLog() {
+      const d = await api('GET', '/api/logs?lines=150');
+      $('logPre').textContent = (d.lines || []).join('\n');
+    }
+
+    $('refreshDevicesBtn').onclick = () => loadDevices().catch((e) => console.error(e));
+    $('refreshLogBtn').onclick = () => loadLog().catch((e) => console.error(e));
+
+    $('saveSettingsBtn').onclick = async () => {
+      $('settingsMsg').textContent = '';
+      try {
+        const body = { port: ($('cfgPort').value || '8082').trim() };
+        if ($('cfgEmail').value.trim()) body.wyze_email = $('cfgEmail').value.trim();
+        if ($('cfgKeyId').value.trim()) body.wyze_key_id = $('cfgKeyId').value.trim();
+        if ($('cfgApiKey').value.trim()) body.wyze_api_key = $('cfgApiKey').value.trim();
+        if ($('cfgPassword').value.trim()) body.wyze_password = $('cfgPassword').value.trim();
+        await api('POST', '/api/settings', body);
+        $('settingsMsg').textContent = 'Saved. Refreshing devices…';
+        $('settingsMsg').className = 'ok';
+        $('cfgPassword').value = '';
+        $('cfgApiKey').value = '';
+        await loadDevices();
+        $('settingsMsg').textContent = 'Saved ✓' + ($('cfgPort').value && $('cfgPort').value !== '8082' ? ' — restart server to change port.' : '');
+      } catch (e) {
+        $('settingsMsg').textContent = e.message;
+        $('settingsMsg').className = 'err';
+      }
+    };
+
+    $('testConnBtn').onclick = async () => {
+      $('settingsMsg').textContent = 'Testing…';
+      $('settingsMsg').className = '';
+      try {
+        const d = await api('GET', '/api/devices');
+        const n = (d.devices || []).length;
+        $('settingsMsg').textContent = d.configured
+          ? `Connected — ${n} device(s) found.`
+          : 'Not configured — fill in email, password and API keys above.';
+        $('settingsMsg').className = d.configured ? 'ok' : 'err';
+      } catch (e) {
+        $('settingsMsg').textContent = 'Connection failed: ' + (e.message || e);
+        $('settingsMsg').className = 'err';
+      }
+    };
+
+    document.querySelectorAll('.tab-btn').forEach((btn) => {
+      btn.onclick = () => {
+        document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach((p) => p.classList.remove('active'));
+        btn.classList.add('active');
+        $('panel-' + btn.dataset.tab).classList.add('active');
+        console.debug('[SmashDeck] tab', btn.dataset.tab);
+      };
+    });
+
+    (async function init() {
+      try {
+        const st = await api('GET', '/api/settings');
+        $('cfgPort').value = st.port || '8082';
+        $('cfgEmail').value = st.wyze_email || '';
+        $('cfgKeyId').value = st.wyze_key_id || '';
+        // GET returns masked key (bxy7…last4). Never put that in the field — Save would corrupt the stored key.
+        // Leave password + API key blank; placeholder indicates saved state.
+        const isMasked = (s) => s && (s.indexOf('…') >= 0 || s === '****');
+        $('cfgApiKey').value = '';
+        $('cfgApiKey').placeholder = isMasked(st.wyze_api_key) ? '•••••••• (saved — leave blank to keep)' : 'paste API key';
+        $('cfgPassword').value = '';
+        $('cfgPassword').placeholder = isMasked(st.wyze_password) ? '•••••••• (saved — leave blank to keep)' : 'Wyze account password';
+        await loadDevices();
+        await loadAutomations();
+        await loadLog();
+      } catch (e) {
+        console.error('[SmashDeck] init failed', e);
+      }
+    })();
+  </script>
+</body>
+</html>
