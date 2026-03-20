@@ -580,13 +580,19 @@
       let extra = '';
       if (cat === 'dimmer' || cat === 'color_bulb') {
         const bval = typeof dev.brightness === 'number' ? dev.brightness : 50;
-        const colorRow = cat === 'color_bulb' ? `
+        // Show color picker for all bulb/light devices. Color-capable ones (color_supported)
+        // get a visible label; others show a subtle "try" picker. Wyze API rejects silently
+        // on devices that don't support color — same behaviour as the automations tab.
+        const colorLabel = dev.color_supported
+          ? '<span class="muted" style="font-size:11px;">🎨 Color</span>'
+          : '<span class="muted" style="font-size:11px;" title="May not be supported on this model">🎨</span>';
+        const colorRow = `
             <div class="color-row">
-              <span class="muted" style="font-size:11px;">🎨 Color</span>
+              ${colorLabel}
               <input type="color" value="${escapeAttr(dev.current_color || '#ffffff')}"
                 data-device-id="${id}" data-model="${model}" data-role="color"
                 data-testid="color-picker" aria-label="Light color" />
-            </div>` : '';
+            </div>`;
         extra = `
           <div class="dimmer-extra">
             <div class="brightness-row">
