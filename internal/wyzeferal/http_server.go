@@ -343,6 +343,24 @@ func (s *HTTPServer) handleDeviceSubroutes(w http.ResponseWriter, r *http.Reques
 		}
 		s.logger.Info("Local display name mac=%s name=%q", mac, strings.TrimSpace(req.LocalDisplayName))
 		writeJSON(w, http.StatusOK, apiResp{Success: true, Data: map[string]any{"saved": true, "id": strings.ToUpper(strings.TrimSpace(mac))}})
+	case "tags":
+		if r.Method != http.MethodPut {
+			writeJSON(w, http.StatusMethodNotAllowed, apiResp{Success: false, Error: "method not allowed"})
+			return
+		}
+		var req struct {
+			Tags []string `json:"tags"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, apiResp{Success: false, Error: "invalid JSON"})
+			return
+		}
+		if err := s.registry.SetTags(mac, req.Tags); err != nil {
+			writeJSON(w, http.StatusBadRequest, apiResp{Success: false, Error: err.Error()})
+			return
+		}
+		s.logger.Info("Tags mac=%s tags=%v", mac, req.Tags)
+		writeJSON(w, http.StatusOK, apiResp{Success: true, Data: map[string]any{"saved": true, "tags": req.Tags}})
 	default:
 		writeJSON(w, http.StatusNotFound, apiResp{Success: false, Error: "not found"})
 	}

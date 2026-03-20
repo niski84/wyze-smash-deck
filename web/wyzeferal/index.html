@@ -313,6 +313,55 @@
       width: 100%; height: 28px; border: none; border-radius: 4px; cursor: pointer;
       background: none; padding: 0; accent-color: unset;
     }
+
+    /* ── Device tags ────────────────────────────────────────────── */
+    .device-tags {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+      margin-top: 10px; min-height: 22px;
+    }
+    .tag-chip {
+      display: inline-flex; align-items: center; gap: 2px;
+      background: rgba(90,110,200,0.18); border: 1px solid rgba(90,110,200,0.35);
+      color: var(--text); border-radius: 999px;
+      padding: 2px 6px 2px 8px; font-size: 11px; white-space: nowrap;
+    }
+    .tag-chip .tag-rm {
+      border: none; background: none; color: var(--muted); cursor: pointer;
+      padding: 0 0 0 2px; font-size: 13px; line-height: 1; transition: color 0.1s;
+    }
+    .tag-chip .tag-rm:hover { color: #ff8b7a; }
+    .tag-input {
+      border: 1px dashed rgba(90,110,200,0.35); border-radius: 999px;
+      background: transparent; color: var(--text); font-size: 11px;
+      outline: none; padding: 2px 8px; min-width: 70px; max-width: 120px;
+      transition: border-color 0.15s;
+    }
+    .tag-input:focus { border-color: rgba(90,110,200,0.7); }
+    .tag-input::placeholder { color: var(--muted); }
+
+    /* ── Tag filter bar ─────────────────────────────────────────── */
+    #tagFilterBar {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      padding: 6px 0 2px 0; min-height: 0;
+    }
+    #tagFilterBar:empty { display: none; }
+    .tag-filter-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: rgba(80,100,180,0.1); border: 1px solid rgba(80,100,180,0.28);
+      color: var(--muted); border-radius: 999px;
+      padding: 4px 12px; font-size: 12px; cursor: pointer;
+      transition: all 0.15s; user-select: none;
+    }
+    .tag-filter-chip:hover { border-color: rgba(100,130,220,0.5); color: var(--text); }
+    .tag-filter-chip.active {
+      background: rgba(90,120,220,0.25); border-color: #6488dd;
+      color: var(--text); font-weight: 600;
+    }
+    .tag-filter-chip .tf-count {
+      background: rgba(255,255,255,0.12); border-radius: 999px;
+      font-size: 10px; padding: 0 5px; color: var(--muted);
+    }
+    .tag-filter-chip.active .tf-count { color: var(--text); }
     .modal { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; max-width: 640px; width: 100%; padding: 20px; margin-top: 20px; }
     .online-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
     .online-dot.on { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
@@ -345,6 +394,8 @@
         </div>
         <span id="deviceStatus" class="muted"></span>
       </div>
+      <div id="tagFilterBar" role="group" aria-label="Filter by tag"></div>
+      <datalist id="allTagsList"></datalist>
       <p class="muted" style="font-size:12px;margin:0 0 10px 0;">
         Names are <strong>local labels</strong> (editable); device identity is the <strong>ID</strong> below. Wyze app renames won’t confuse automations.
       </p>
@@ -718,6 +769,154 @@
       });
     }
 
+
+    // ─── Tagging ───────────────────────────────────────────────────────────
+
+    // Set of currently active tag filters.
+    let activeTags = new Set();
+
+    /** Returns every unique tag across all cached devices, sorted. */
+    function getAllTags() {
+      const all = new Set();
+      devicesCache.forEach((d) => (d.tags || []).forEach((t) => all.add(t)));
+      return [...all].sort();
+    }
+
+    /** Refreshes the <datalist> used by tag inputs for autocomplete. */
+    function updateTagDatalist() {
+      const dl = $('allTagsList');
+      if (!dl) return;
+      dl.innerHTML = getAllTags()
+        .map((t) => `<option value="${escapeAttr(t)}"></option>`)
+        .join('');
+    }
+
+    /** Rebuilds the clickable tag filter bar above the device grid. */
+    function renderTagFilterBar() {
+      const bar = $('tagFilterBar');
+      if (!bar) return;
+      const tags = getAllTags();
+      if (tags.length === 0) { bar.innerHTML = ''; return; }
+
+      // Count devices per tag.
+      const counts = {};
+      tags.forEach((t) => {
+        counts[t] = devicesCache.filter((d) => (d.tags || []).includes(t)).length;
+      });
+
+      bar.innerHTML = tags.map((t) => {
+        const active = activeTags.has(t) ? ' active' : '';
+        return `<button class="tag-filter-chip${active}" data-tag="${escapeAttr(t)}" aria-pressed="${activeTags.has(t)}" title="Filter: #${escapeAttr(t)}">#${escapeHtml(t)}<span class="tf-count">${counts[t]}</span></button>`;
+      }).join('');
+
+      bar.querySelectorAll('.tag-filter-chip').forEach((btn) => {
+        btn.onclick = () => {
+          const tag = btn.dataset.tag;
+          if (activeTags.has(tag)) activeTags.delete(tag);
+          else activeTags.add(tag);
+          renderTagFilterBar();
+          renderDevices();
+        };
+      });
+    }
+
+    /** Updates devicesCache entry's tags optimistically (no re-fetch needed). */
+    function updateDeviceCacheTags(id, tags) {
+      const normId = (id || '').toUpperCase();
+      devicesCache = devicesCache.map((d) =>
+        (d.id || d.mac || '').toUpperCase() === normId ? { ...d, tags } : d
+      );
+      updateTagDatalist();
+      renderTagFilterBar();
+    }
+
+    /** Builds the tag editor HTML snippet for a device card. */
+    function tagAreaHTML(dev) {
+      const id = escapeAttr(dev.id || dev.mac);
+      const tags = dev.tags || [];
+      const chips = tags.map((t) =>
+        `<span class="tag-chip" data-tag="${escapeAttr(t)}">#${escapeHtml(t)}<button class="tag-rm" aria-label="Remove tag ${escapeAttr(t)}">&#x00D7;</button></span>`
+      ).join('');
+      return `<div class="device-tags" data-device-id="${id}" data-testid="device-tags">${chips}<input class="tag-input" list="allTagsList" placeholder="${tags.length ? '+' : '+ tag\u2026'}" size="6" aria-label="Add tag" /></div>`;
+    }
+
+    /** Wires up tag chip removal and the tag text input for a device element. */
+    function bindTagArea(el, dev) {
+      const area = el.querySelector('.device-tags');
+      if (!area) return;
+      const id = dev.id || dev.mac;
+
+      function currentTags() {
+        return [...area.querySelectorAll('.tag-chip')].map((c) => c.dataset.tag);
+      }
+
+      async function saveTags(tags) {
+        try {
+          await api('PUT', '/api/devices/' + encodeURIComponent(id) + '/tags', { tags });
+          updateDeviceCacheTags(id, tags);
+          console.debug('[SmashDeck] tags saved', id, tags);
+        } catch (e) {
+          console.error('[SmashDeck] tag save failed', e);
+        }
+      }
+
+      function addChip(val) {
+        const norm = val.trim().toLowerCase().replace(/,/g, '').replace(/\s+/g, ' ');
+        if (!norm) return false;
+        if (currentTags().includes(norm)) return false;
+        const chip = document.createElement('span');
+        chip.className = 'tag-chip';
+        chip.dataset.tag = norm;
+        chip.innerHTML = `#${escapeHtml(norm)}<button class="tag-rm" aria-label="Remove tag ${escapeAttr(norm)}">&#x00D7;</button>`;
+        chip.querySelector('.tag-rm').onclick = (e) => {
+          e.stopPropagation();
+          chip.remove();
+          inp.placeholder = currentTags().length ? '+' : '+ tag\u2026';
+          saveTags(currentTags());
+        };
+        area.insertBefore(chip, inp);
+        return true;
+      }
+
+      // Wire existing remove buttons.
+      area.querySelectorAll('.tag-rm').forEach((btn) => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          btn.closest('.tag-chip').remove();
+          inp.placeholder = currentTags().length ? '+' : '+ tag\u2026';
+          saveTags(currentTags());
+        };
+      });
+
+      const inp = area.querySelector('.tag-input');
+      inp.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ',') {
+          ev.preventDefault();
+          if (addChip(inp.value)) {
+            inp.value = '';
+            inp.placeholder = '+';
+            saveTags(currentTags());
+          }
+        } else if (ev.key === 'Backspace' && inp.value === '') {
+          // Backspace on empty input removes last tag.
+          const chips = [...area.querySelectorAll('.tag-chip')];
+          if (chips.length > 0) {
+            chips[chips.length - 1].remove();
+            inp.placeholder = currentTags().length ? '+' : '+ tag\u2026';
+            saveTags(currentTags());
+          }
+        }
+      });
+      inp.addEventListener('change', () => {
+        // Native datalist pick triggers change without Enter.
+        if (inp.value && addChip(inp.value)) {
+          inp.value = '';
+          inp.placeholder = '+';
+          saveTags(currentTags());
+        }
+      });
+    }
+
     function startRename(span, dev) {
       const id = dev.id || dev.mac;
       const cur = span.textContent;
@@ -792,7 +991,8 @@
           ${escapeHtml(dev.product_type || 'device')} · <code data-testid="device-id">${escapeHtml(dev.id || dev.mac)}</code>
         </div>
         ${wyze ? `<div class="device-meta">${wyze}</div>` : ''}
-        ${powerControlHTML(dev)}`;
+        ${powerControlHTML(dev)}
+        ${tagAreaHTML(dev)}`;
       el.querySelector('.device-label').addEventListener('click', (ev) => {
         if (ev.target.contentEditable === 'true') return;
         startRename(ev.target, dev);
@@ -800,6 +1000,7 @@
       bindPowerToggles(el);
       bindBrightnessSliders(el);
       bindColorPickers(el);
+      bindTagArea(el, dev);
       return el;
     }
 
@@ -819,7 +1020,8 @@
           </div>
         </div>
         <div>${powerControlHTML(dev)}</div>
-        <div style="text-align:right;"><span class="badge" data-testid="power-badge">${on ? 'ON' : 'OFF'}</span></div>`;
+        <div style="text-align:right;"><span class="badge" data-testid="power-badge">${on ? 'ON' : 'OFF'}</span></div>
+        <div style="grid-column:1/-1;">${tagAreaHTML(dev)}</div>`;
       el.querySelector('.device-label').addEventListener('click', (ev) => {
         if (ev.target.contentEditable === 'true') return;
         startRename(ev.target, dev);
@@ -827,6 +1029,7 @@
       bindPowerToggles(el);
       bindBrightnessSliders(el);
       bindColorPickers(el);
+      bindTagArea(el, dev);
       return el;
     }
 
@@ -839,20 +1042,32 @@
       wrap.innerHTML = '';
       const listMode = getDeviceView() === 'list';
       const q = getSearchQuery();
-      const filtered = q
-        ? devicesCache.filter((d) => {
-            const name = (d.display_name || d.wyze_nickname || d.id || '').toLowerCase();
-            const type = (d.product_type || '').toLowerCase();
-            return name.includes(q) || type.includes(q);
-          })
-        : devicesCache;
+      const filtered = devicesCache.filter((d) => {
+        if (q) {
+          const name = (d.display_name || d.wyze_nickname || d.id || '').toLowerCase();
+          const type = (d.product_type || '').toLowerCase();
+          const tags = (d.tags || []).join(' ');
+          if (!name.includes(q) && !type.includes(q) && !tags.includes(q)) return false;
+        }
+        if (activeTags.size > 0) {
+          const dtags = new Set(d.tags || []);
+          // OR logic: show device if it has ANY of the active filter tags.
+          let match = false;
+          for (const at of activeTags) { if (dtags.has(at)) { match = true; break; } }
+          if (!match) return false;
+        }
+        return true;
+      });
       filtered.forEach((dev) => {
         wrap.appendChild(listMode ? renderDeviceRow(dev) : renderDeviceCard(dev));
       });
       const total = devicesCache.length;
       const shown = filtered.length;
-      if (q && total > 0) {
-        $('deviceStatus').textContent = `${shown} of ${total} device(s) match "${q}"`;
+      const filterParts = [];
+      if (q) filterParts.push(`"${q}"`);
+      if (activeTags.size > 0) filterParts.push([...activeTags].map((t) => '#' + t).join(' '));
+      if (filterParts.length > 0 && total > 0) {
+        $('deviceStatus').textContent = `${shown} of ${total} device(s) match ${filterParts.join(' + ')}`;
       }
     }
 
@@ -874,6 +1089,8 @@
         console.error('[SmashDeck] loadDevices failed', e);
       }
       setDeviceView(getDeviceView());
+      updateTagDatalist();
+      renderTagFilterBar();
       renderDevices();
       fillDeviceSelects();
     }

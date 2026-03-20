@@ -75,8 +75,9 @@ type EnrichedDevice struct {
 	SwitchState      int    `json:"switch_state"`
 	DeviceParams     any    `json:"device_params,omitempty"`
 	UICategory       string `json:"ui_category"`
-	DimmerSupported  bool   `json:"dimmer_supported"`
-	ColorSupported   bool   `json:"color_supported"`
+	DimmerSupported  bool     `json:"dimmer_supported"`
+	ColorSupported   bool     `json:"color_supported"`
+	Tags             []string `json:"tags"`
 }
 
 // BuildEnrichedDevice merges Wyze payload + local registry entry.
@@ -95,6 +96,10 @@ func BuildEnrichedDevice(d WyzeDevice, local DeviceLocalMeta) EnrichedDevice {
 		display = mac
 	}
 	cat := CategorizeDeviceUI(d)
+	tags := local.Tags
+	if tags == nil {
+		tags = []string{}
+	}
 	return EnrichedDevice{
 		ID:               mac,
 		MAC:              mac,
@@ -109,5 +114,6 @@ func BuildEnrichedDevice(d WyzeDevice, local DeviceLocalMeta) EnrichedDevice {
 		UICategory:       cat,
 		DimmerSupported:  cat == UICategoryDimmer || cat == UICategoryColorBulb,
 		ColorSupported:   cat == UICategoryColorBulb,
+		Tags:             tags,
 	}
 }
