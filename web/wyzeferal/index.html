@@ -1525,6 +1525,17 @@
         await loadDevices();
         await loadAutomations();
         await loadLog();
+
+        // Periodic background refresh — keeps UI in sync with changes made via other
+        // apps or physical switches. 60s is a reasonable rate: fresh enough to notice
+        // changes within a minute, light enough not to hammer the Wyze cloud API.
+        // Pinned states (20s window after a manual toggle) still take priority, so
+        // a refresh immediately after toggling will never flip the switch back.
+        const POLL_INTERVAL_MS = 60_000;
+        setInterval(() => {
+          loadDevices().catch((e) => console.debug('[SmashDeck] poll refresh failed', e));
+        }, POLL_INTERVAL_MS);
+        console.debug('[SmashDeck] polling every', POLL_INTERVAL_MS / 1000, 's');
       } catch (e) {
         console.error('[SmashDeck] init failed', e);
       }
