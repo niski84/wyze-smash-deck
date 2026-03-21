@@ -257,7 +257,8 @@ func (l *AutomationLogger) Log(level, format string, args ...any) {
 	fmt.Print(line)
 }
 
-func (l *AutomationLogger) Info(format string, args ...any)  { l.Log("INFO", format, args...) }
+func (l *AutomationLogger) Info(format string, args ...any)  { l.Log("INFO ", format, args...) }
+func (l *AutomationLogger) Warn(format string, args ...any)  { l.Log("WARN ", format, args...) }
 func (l *AutomationLogger) Error(format string, args ...any) { l.Log("ERROR", format, args...) }
 func (l *AutomationLogger) Step(format string, args ...any)  { l.Log("STEP", format, args...) }
 

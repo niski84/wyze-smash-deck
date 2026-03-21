@@ -260,6 +260,7 @@ func (s *HTTPServer) handleDeviceSubroutes(w http.ResponseWriter, r *http.Reques
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
 		if err := c.ControlDevice(ctx, mac, req.Model, req.On); err != nil {
+			s.logger.Warn("Control FAILED mac=%s on=%v model=%q err=%v", mac, req.On, req.Model, err)
 			writeJSON(w, http.StatusBadGateway, apiResp{Success: false, Error: err.Error()})
 			return
 		}
@@ -290,6 +291,7 @@ func (s *HTTPServer) handleDeviceSubroutes(w http.ResponseWriter, r *http.Reques
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
 		if err := c.SetBrightness(ctx, mac, req.Model, req.Brightness); err != nil {
+			s.logger.Warn("Brightness FAILED mac=%s val=%d model=%q err=%v", mac, req.Brightness, req.Model, err)
 			writeJSON(w, http.StatusBadGateway, apiResp{Success: false, Error: err.Error()})
 			return
 		}
@@ -320,6 +322,7 @@ func (s *HTTPServer) handleDeviceSubroutes(w http.ResponseWriter, r *http.Reques
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
 		if err := c.SetColor(ctx, mac, req.Model, req.Color); err != nil {
+			s.logger.Warn("Color FAILED mac=%s color=%s model=%q err=%v", mac, req.Color, req.Model, err)
 			writeJSON(w, http.StatusBadGateway, apiResp{Success: false, Error: err.Error()})
 			return
 		}

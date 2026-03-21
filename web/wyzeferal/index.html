@@ -671,7 +671,33 @@
     // refresh after a short delay to catch any discrepancy.
     let refreshTimers = {};
 
+    // pinnedStates: map of uppercase device ID -> { on: bool, expiresAt: timestamp }
+    // Prevents stale Wyze cloud state from overwriting a recent local toggle.
+    // Wyze cloud can take 20+ seconds to reflect state changes for some device types (e.g. LD_SS1).
+    const PINNED_TTL_MS = 20000;
+    let pinnedStates = {};
+
+    function pinDeviceState(id, on) {
+      pinnedStates[id.toUpperCase()] = { on, expiresAt: Date.now() + PINNED_TTL_MS };
+    }
+
+    function applyPinnedStates(devices) {
+      const now = Date.now();
+      return devices.map((d) => {
+        const key = (d.id || d.mac || '').toUpperCase();
+        const pin = pinnedStates[key];
+        if (!pin) return d;
+        if (pin.expiresAt < now) { delete pinnedStates[key]; return d; }
+        return {
+          ...d,
+          switch_state: pin.on ? 1 : 0,
+          device_params: { ...(d.device_params || {}), switch_state: pin.on ? 1 : 0 },
+        };
+      });
+    }
+
     function updateDeviceCacheState(id, on) {
+      pinDeviceState(id, on);
       const normId = id.toUpperCase();
       devicesCache = devicesCache.map((d) => {
         if ((d.id || d.mac || '').toUpperCase() !== normId) return d;
@@ -1075,7 +1101,7 @@
       $('deviceStatus').className = '';
       try {
         const d = await api('GET', '/api/devices');
-        devicesCache = d.devices || [];
+        devicesCache = applyPinnedStates(d.devices || []);
         const ok = d.configured !== false;
         $('deviceStatus').textContent = ok
           ? `${devicesCache.length} device(s)`
