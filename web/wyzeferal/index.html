@@ -314,6 +314,29 @@
       background: none; padding: 0; accent-color: unset;
     }
 
+    /* ── Offline warning / toast ───────────────────────────────── */
+    .offline-warn {
+      font-size: 11px; color: #f0a030; background: rgba(240,160,48,0.1);
+      border: 1px solid rgba(240,160,48,0.3); border-radius: 4px;
+      padding: 4px 8px; margin-bottom: 6px; display: flex; align-items: center; gap: 5px;
+    }
+    #toastContainer {
+      position: fixed; bottom: 20px; right: 20px; z-index: 9999;
+      display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+    }
+    .toast {
+      background: #2a2d3a; border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 6px; padding: 10px 14px; font-size: 13px;
+      color: var(--text); box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      opacity: 0; transform: translateY(8px);
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: auto; max-width: 340px;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.warn { border-left: 3px solid #f0a030; }
+    .toast.err  { border-left: 3px solid #ff6b6b; }
+    .toast.ok   { border-left: 3px solid var(--ok); }
+
     /* ── Device tags ────────────────────────────────────────────── */
     .device-tags {
       display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
@@ -599,6 +622,20 @@
       return j.data;
     }
 
+    function showToast(msg, type = 'warn', durationMs = 4000) {
+      const tc = document.getElementById('toastContainer');
+      if (!tc) return;
+      const t = document.createElement('div');
+      t.className = `toast ${type}`;
+      t.textContent = msg;
+      tc.appendChild(t);
+      requestAnimationFrame(() => { requestAnimationFrame(() => { t.classList.add('show'); }); });
+      setTimeout(() => {
+        t.classList.remove('show');
+        setTimeout(() => t.remove(), 250);
+      }, durationMs);
+    }
+
     let devicesCache = [];
 
     function deviceIsOn(dev) {
@@ -626,6 +663,9 @@
       if (cat === 'generic') {
         return '<span class="muted" data-testid="device-no-control">No power control in Smash Deck for this type yet.</span>';
       }
+      const offlineWarn = dev.is_online === false
+        ? `<div class="offline-warn" data-testid="offline-warn">⚠ Device offline — commands queued but may not be delivered. Power-cycle the device to reconnect.</div>`
+        : '';
       const id = escapeAttr(dev.id || dev.mac);
       const model = escapeAttr(dev.product_model || '');
       let extra = '';
@@ -655,7 +695,7 @@
             </div>${colorRow}
           </div>`;
       }
-      return `
+      return offlineWarn + `
         <div class="pwr-row">
           <span class="pwr-label">Power</span>
           <label class="pwr-toggle" data-testid="power-toggle">
@@ -723,6 +763,10 @@
           const model = inp.getAttribute('data-model');
           const wantOn = inp.checked;
           console.debug('[SmashDeck] power toggle', id, wantOn);
+          const dev = devicesCache.find((d) => (d.id || d.mac || '').toUpperCase() === id.toUpperCase());
+          if (dev && dev.is_online === false) {
+            showToast('⚠ Device is offline — command sent but may not be received. Power-cycle to reconnect.', 'warn', 6000);
+          }
           try {
             await api('POST', '/api/devices/' + encodeURIComponent(id) + '/control', { model, on: wantOn });
             // Optimistically update local cache — don't re-fetch immediately because
@@ -1548,5 +1592,6 @@
       }
     })();
   </script>
+  <div id="toastContainer"></div>
 </body>
 </html>
