@@ -535,12 +535,25 @@ func wyzeDeviceFromMap(m map[string]any) WyzeDevice {
 		d.Type = s
 	}
 
-	// is_online may be bool or numeric
-	switch v := m["is_online"].(type) {
+	// Wyze API sends conn_state (0=offline, 1=online); is_online is a legacy fallback.
+	switch v := m["conn_state"].(type) {
+	case float64:
+		d.IsOnline = v == 1
+	case string:
+		d.IsOnline = v == "1"
 	case bool:
 		d.IsOnline = v
+	}
+	// Fallback: is_online (present in some older device types)
+	switch v := m["is_online"].(type) {
+	case bool:
+		if v {
+			d.IsOnline = true
+		}
 	case float64:
-		d.IsOnline = v != 0
+		if v != 0 {
+			d.IsOnline = true
+		}
 	}
 
 	// switch state from device_params first

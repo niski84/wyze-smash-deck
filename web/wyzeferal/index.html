@@ -1013,7 +1013,11 @@
           title="Click to rename (Enter saves, Esc cancels)"
         >${escapeHtml(name)}</div>
         <div class="device-meta">
-          <span class="online-dot ${dev.is_online ? 'on' : 'off'}" aria-hidden="true"></span>
+          <span
+            class="online-dot ${dev.is_online ? 'on' : 'off'}"
+            aria-hidden="true"
+            title="${dev.is_online ? 'Online' : 'Offline — if this is a smart bulb, check that its wall switch has power'}"
+          ></span>
           ${escapeHtml(dev.product_type || 'device')} · <code data-testid="device-id">${escapeHtml(dev.id || dev.mac)}</code>
         </div>
         ${wyze ? `<div class="device-meta">${wyze}</div>` : ''}
@@ -1041,7 +1045,10 @@
         <div>
           <div class="device-label" data-testid="device-name">${escapeHtml(name)}</div>
           <div class="device-meta">
-            <span class="online-dot ${dev.is_online ? 'on' : 'off'}"></span>
+            <span
+              class="online-dot ${dev.is_online ? 'on' : 'off'}"
+              title="${dev.is_online ? 'Online' : 'Offline — if this is a smart bulb, check that its wall switch has power'}"
+            ></span>
             ${escapeHtml(dev.product_type || '')} · <code data-testid="device-id">${escapeHtml(dev.id || dev.mac)}</code>
           </div>
         </div>
