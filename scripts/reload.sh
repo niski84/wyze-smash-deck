@@ -11,7 +11,7 @@ _reload_ok_double_beep() {
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-BINARY="$PROJECT_DIR/wyze-smash-deck"
+BINARY="$PROJECT_DIR/wyzeferal"
 
 echo "=== Wyze Smash Deck reload ==="
 echo "→ Stopping existing process..."
