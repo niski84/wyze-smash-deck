@@ -1518,8 +1518,11 @@
           timezone: $('schedTz').value || undefined,
           ends_on_date: $('schedEnd').value.trim() || undefined,
           skip_weekends: $('schedSkipWknd').checked,
-          action: $('simpleAction').value,
         };
+        // Only include action when workflow type is 'scheduled'
+        if (typ === 'scheduled') {
+          base.schedule.action = $('simpleAction').value;
+        }
       }
 
       if (typ === 'scene') {
