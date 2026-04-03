@@ -40,8 +40,8 @@ echo "  Build OK: $BINARY"
 PORT="${PORT:-8082}"
 export PORT
 echo "→ Starting on :${PORT}..."
-nohup env PORT="$PORT" "$BINARY" >"$PROJECT_DIR/wyze-smash-deck.log" 2>&1 &
-echo $! >"$PROJECT_DIR/wyze-smash-deck.pid"
+nohup env PORT="$PORT" "$BINARY" >"$PROJECT_DIR/wyzeferal.log" 2>&1 &
+echo $! >"$PROJECT_DIR/wyzeferal.pid"
 
 for i in $(seq 1 30); do
   sleep 0.2
@@ -51,5 +51,5 @@ for i in $(seq 1 30); do
     exit 0
   fi
 done
-echo "✗ Server did not respond — check wyze-smash-deck.log"
+echo "✗ Server did not respond — check wyzeferal.log"
 exit 1
