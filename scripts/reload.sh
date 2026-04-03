@@ -26,10 +26,16 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 
 if [ -f "$PROJECT_DIR/.env" ]; then
-    set -a
-    # shellcheck disable=SC1090
-    source "$PROJECT_DIR/.env"
-    set +a
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+        [[ "$line" != *=* ]] && continue
+        key="${line%%=*}"
+        val="${line#*=}"
+        # strip surrounding quotes so both KEY="val" and KEY=val work
+        val="${val#\"}" ; val="${val%\"}"
+        val="${val#\'}" ; val="${val%\'}"
+        export "$key=$val"
+    done < "$PROJECT_DIR/.env"
 fi
 
 echo "→ Building..."
