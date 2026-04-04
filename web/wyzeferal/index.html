@@ -230,6 +230,42 @@
 
     .device-grid-wrap.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
     .device-grid-wrap.list { display: flex; flex-direction: column; gap: 8px; }
+    .device-grid-wrap.compact { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 5px; }
+
+    .device-compact {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 10px;
+      background: var(--card-bg);
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      min-width: 0;
+    }
+    .device-compact.offline { opacity: 0.5; }
+    .compact-row { display: flex; align-items: center; gap: 6px; }
+    .compact-name {
+      font-size: 0.82rem;
+      font-weight: 600;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .compact-more-btn {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      flex-shrink: 0;
+      line-height: 1.6;
+    }
+    .compact-more-btn:hover { background: rgba(255,255,255,0.06); color: var(--fg); }
+    .compact-extras { border-top: 1px solid var(--border); padding-top: 6px; margin-top: 2px; }
 
     .device-card, .device-row {
       border: 1px solid var(--border);
@@ -416,6 +452,7 @@
         <div class="view-toggle" role="group" aria-label="Layout">
           <button type="button" id="viewGridBtn" class="active" data-view="grid" data-testid="view-grid">Grid</button>
           <button type="button" id="viewListBtn" data-view="list" data-testid="view-list">List</button>
+          <button type="button" id="viewCompactBtn" data-view="compact" data-testid="view-compact">Compact</button>
         </div>
         <span id="deviceStatus" class="muted"></span>
       </div>
@@ -653,10 +690,11 @@
     function setDeviceView(mode) {
       localStorage.setItem('wyzeferal.deviceView', mode);
       const wrap = $('deviceGrid');
-      wrap.classList.remove('grid', 'list');
-      wrap.classList.add(mode === 'list' ? 'list' : 'grid');
-      $('viewGridBtn').classList.toggle('active', mode !== 'list');
+      wrap.classList.remove('grid', 'list', 'compact');
+      wrap.classList.add(mode === 'list' ? 'list' : mode === 'compact' ? 'compact' : 'grid');
+      $('viewGridBtn').classList.toggle('active', mode === 'grid');
       $('viewListBtn').classList.toggle('active', mode === 'list');
+      $('viewCompactBtn').classList.toggle('active', mode === 'compact');
     }
 
     function powerControlHTML(dev) {
@@ -1114,6 +1152,72 @@
       return el;
     }
 
+    function renderDeviceCompact(dev) {
+      const el = document.createElement('div');
+      const on = deviceIsOn(dev);
+      const cat = dev.ui_category || 'power_switch';
+      const isLight = cat === 'dimmer' || cat === 'color_bulb';
+      const offline = dev.is_online === false;
+      el.className = 'device-compact' + (offline ? ' offline' : '');
+      el.dataset.testid = 'device-compact';
+      el.dataset.deviceId = dev.id || dev.mac;
+      const name = dev.display_name || dev.id;
+      const id = escapeAttr(dev.id || dev.mac);
+      const model = escapeAttr(dev.product_model || '');
+      const disabledAttr = offline ? 'disabled' : '';
+      const moreBtn = isLight
+        ? `<button type="button" class="compact-more-btn" data-role="compact-more" aria-expanded="false" aria-label="Show light controls">More</button>`
+        : '';
+      el.innerHTML = `
+        <div class="compact-row">
+          <span class="compact-name" title="${escapeAttr(name)}">${escapeHtml(name)}</span>
+          ${moreBtn}
+          <label class="pwr-toggle" data-testid="power-toggle">
+            <input type="checkbox" ${on ? 'checked' : ''} data-device-id="${id}" data-model="${model}" data-role="power" aria-label="Toggle power" ${disabledAttr} />
+            <span class="pwr-slider"></span>
+          </label>
+        </div>`;
+      if (isLight) {
+        const bval = typeof dev.brightness === 'number' ? dev.brightness : 50;
+        const colorLabel = dev.color_supported
+          ? '<span class="muted" style="font-size:11px;">🎨 Color</span>'
+          : '<span class="muted" style="font-size:11px;" title="May not be supported on this model">🎨</span>';
+        const extrasDiv = document.createElement('div');
+        extrasDiv.className = 'compact-extras dimmer-extra';
+        extrasDiv.style.display = 'none';
+        extrasDiv.innerHTML = `
+          <div class="brightness-row">
+            <span class="muted" style="font-size:11px;">☀ Brightness</span>
+            <input type="range" min="1" max="100" value="${bval}"
+              data-device-id="${id}" data-model="${model}" data-role="brightness"
+              data-testid="brightness-slider" aria-label="Brightness" ${disabledAttr} />
+            <span class="brightness-val">${bval}%</span>
+          </div>
+          <div class="color-row">
+            ${colorLabel}
+            <input type="color" value="${escapeAttr(dev.current_color || '#ffffff')}"
+              data-device-id="${id}" data-model="${model}" data-role="color"
+              data-testid="color-picker" aria-label="Light color" ${disabledAttr} />
+          </div>`;
+        el.appendChild(extrasDiv);
+        let extrasBound = false;
+        el.querySelector('[data-role="compact-more"]').addEventListener('click', (ev) => {
+          const btn = ev.currentTarget;
+          const expanded = btn.getAttribute('aria-expanded') === 'true';
+          btn.setAttribute('aria-expanded', String(!expanded));
+          btn.textContent = expanded ? 'More' : 'Less';
+          extrasDiv.style.display = expanded ? 'none' : '';
+          if (!expanded && !extrasBound) {
+            bindBrightnessSliders(extrasDiv);
+            bindColorPickers(extrasDiv);
+            extrasBound = true;
+          }
+        });
+      }
+      bindPowerToggles(el);
+      return el;
+    }
+
     function getSearchQuery() {
       return ($('deviceSearchInput').value || '').trim().toLowerCase();
     }
@@ -1121,7 +1225,7 @@
     function renderDevices() {
       const wrap = $('deviceGrid');
       wrap.innerHTML = '';
-      const listMode = getDeviceView() === 'list';
+      const view = getDeviceView();
       const q = getSearchQuery();
       const filtered = devicesCache.filter((d) => {
         if (q) {
@@ -1141,7 +1245,9 @@
       });
       filtered.sort((a, b) => (a.is_online === false ? 1 : 0) - (b.is_online === false ? 1 : 0));
       filtered.forEach((dev) => {
-        wrap.appendChild(listMode ? renderDeviceRow(dev) : renderDeviceCard(dev));
+        if (view === 'list') wrap.appendChild(renderDeviceRow(dev));
+        else if (view === 'compact') wrap.appendChild(renderDeviceCompact(dev));
+        else wrap.appendChild(renderDeviceCard(dev));
       });
       const total = devicesCache.length;
       const shown = filtered.length;
@@ -1183,6 +1289,10 @@
     };
     $('viewListBtn').onclick = () => {
       setDeviceView('list');
+      renderDevices();
+    };
+    $('viewCompactBtn').onclick = () => {
+      setDeviceView('compact');
       renderDevices();
     };
 
