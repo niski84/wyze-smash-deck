@@ -303,6 +303,8 @@
     .pwr-toggle input:checked + .pwr-slider { background: linear-gradient(180deg, #5cdb8c 0%, #3aa86a 100%); border-color: #4a9d6a; }
     .pwr-toggle input:checked + .pwr-slider::before { transform: translateX(22px); }
     .pwr-toggle input:focus-visible + .pwr-slider { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .pwr-toggle input:disabled + .pwr-slider { cursor: not-allowed; opacity: 0.45; }
+    .pwr-toggle input:disabled:checked + .pwr-slider { background: #4a5568; border-color: #3d4a63; }
 
     .dimmer-extra { margin-top: 10px; }
     .dimmer-extra input[type="range"] { width: 100%; margin-bottom: 2px; accent-color: #f49a17; }
@@ -668,6 +670,8 @@
         : '';
       const id = escapeAttr(dev.id || dev.mac);
       const model = escapeAttr(dev.product_model || '');
+      const offline = dev.is_online === false;
+      const disabledAttr = offline ? 'disabled' : '';
       let extra = '';
       if (cat === 'dimmer' || cat === 'color_bulb') {
         const bval = typeof dev.brightness === 'number' ? dev.brightness : 50;
@@ -682,7 +686,7 @@
               ${colorLabel}
               <input type="color" value="${escapeAttr(dev.current_color || '#ffffff')}"
                 data-device-id="${id}" data-model="${model}" data-role="color"
-                data-testid="color-picker" aria-label="Light color" />
+                data-testid="color-picker" aria-label="Light color" ${disabledAttr} />
             </div>`;
         extra = `
           <div class="dimmer-extra">
@@ -690,7 +694,7 @@
               <span class="muted" style="font-size:11px;">☀ Brightness</span>
               <input type="range" min="1" max="100" value="${bval}"
                 data-device-id="${id}" data-model="${model}" data-role="brightness"
-                data-testid="brightness-slider" aria-label="Brightness" />
+                data-testid="brightness-slider" aria-label="Brightness" ${disabledAttr} />
               <span class="brightness-val">${bval}%</span>
             </div>${colorRow}
           </div>`;
@@ -699,7 +703,7 @@
         <div class="pwr-row">
           <span class="pwr-label">Power</span>
           <label class="pwr-toggle" data-testid="power-toggle">
-            <input type="checkbox" ${on ? 'checked' : ''} data-device-id="${id}" data-model="${model}" data-role="power" aria-label="Toggle power" />
+            <input type="checkbox" ${on ? 'checked' : ''} data-device-id="${id}" data-model="${model}" data-role="power" aria-label="Toggle power" ${disabledAttr} />
             <span class="pwr-slider"></span>
           </label>
         </div>${extra}`;
@@ -1135,6 +1139,7 @@
         }
         return true;
       });
+      filtered.sort((a, b) => (a.is_online === false ? 1 : 0) - (b.is_online === false ? 1 : 0));
       filtered.forEach((dev) => {
         wrap.appendChild(listMode ? renderDeviceRow(dev) : renderDeviceCard(dev));
       });
@@ -1578,12 +1583,13 @@
         await loadLog();
 
         // Periodic background refresh — keeps UI in sync with changes made via other
-        // apps or physical switches. 60s is a reasonable rate: fresh enough to notice
-        // changes within a minute, light enough not to hammer the Wyze cloud API.
+        // apps or physical switches. Polled at 5 min; the server caches the Wyze cloud
+        // response for 55s so multiple tabs never multiply API load.
         // Pinned states (20s window after a manual toggle) still take priority, so
         // a refresh immediately after toggling will never flip the switch back.
-        const POLL_INTERVAL_MS = 60_000;
+        const POLL_INTERVAL_MS = 300_000;
         setInterval(() => {
+          if (document.hidden) return; // don't poll background tabs
           loadDevices().catch((e) => console.debug('[SmashDeck] poll refresh failed', e));
         }, POLL_INTERVAL_MS);
         console.debug('[SmashDeck] polling every', POLL_INTERVAL_MS / 1000, 's');

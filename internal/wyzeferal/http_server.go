@@ -11,6 +11,33 @@ import (
 	"time"
 )
 
+const deviceCacheTTL = 55 * time.Second
+
+// deviceCache holds the last successful ListDevices result to avoid hammering
+// the Wyze cloud on every browser poll. TTL is 55s — well under the 60s minimum
+// between legitimate polls but long enough to serve all browser tabs from one fetch.
+type deviceCache struct {
+	mu        sync.Mutex
+	devices   []WyzeDevice
+	fetchedAt time.Time
+}
+
+func (dc *deviceCache) get() ([]WyzeDevice, bool) {
+	dc.mu.Lock()
+	defer dc.mu.Unlock()
+	if dc.devices == nil || time.Since(dc.fetchedAt) > deviceCacheTTL {
+		return nil, false
+	}
+	return dc.devices, true
+}
+
+func (dc *deviceCache) set(devices []WyzeDevice) {
+	dc.mu.Lock()
+	defer dc.mu.Unlock()
+	dc.devices = devices
+	dc.fetchedAt = time.Now()
+}
+
 // HTTPServer wires HTTP routes to Wyze + automations.
 type HTTPServer struct {
 	mu sync.RWMutex
@@ -24,6 +51,7 @@ type HTTPServer struct {
 	registry  *DeviceRegistry
 	logger    *AutomationLogger
 	scheduler *AutomationScheduler
+	devCache  deviceCache
 }
 
 func NewHTTPServer(cfg AppConfig) *HTTPServer {
@@ -206,12 +234,17 @@ func (s *HTTPServer) handleDevices(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, apiResp{Success: true, Data: map[string]any{"devices": []any{}, "configured": false}})
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
-	defer cancel()
-	all, err := c.ListDevices(ctx)
-	if err != nil {
-		writeJSON(w, http.StatusBadGateway, apiResp{Success: false, Error: err.Error()})
-		return
+	all, cached := s.devCache.get()
+	if !cached {
+		ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+		defer cancel()
+		var err error
+		all, err = c.ListDevices(ctx)
+		if err != nil {
+			writeJSON(w, http.StatusBadGateway, apiResp{Success: false, Error: err.Error()})
+			return
+		}
+		s.devCache.set(all)
 	}
 	var enriched []EnrichedDevice
 	for _, d := range all {
