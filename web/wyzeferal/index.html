@@ -427,10 +427,17 @@
     .online-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
     .online-dot.on { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
     .online-dot.off { background: #555; }
+
+    /* ── Compact header ─────────────────────────────────────────────── */
+    body.compact-header #pageHeader { margin-bottom: 4px; }
+    body.compact-header .theme-hero { display: none; }
+    body.compact-header .device-name { display: none; }
+    body.compact-header #themeToggleBtn { display: none; }
+    body.compact-header .tabs { margin-bottom: 4px; }
   </style>
 </head>
 <body>
-  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+  <div id="pageHeader" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
     <div class="device-name" data-testid="page-title" style="margin-bottom:0;">Wyze Feral Smash Deck</div>
     <button type="button" id="themeToggleBtn" data-testid="theme-toggle" title="Toggle dark/light theme">🌙 Dark</button>
   </div>
@@ -481,6 +488,13 @@
         <button type="button" id="themeToggleBtnSettings" data-testid="theme-toggle-settings" style="padding:8px 20px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-weight:600;">
           Switch to Light mode
         </button>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:10px;">
+        <span style="font-size:13px;color:var(--muted);">Header</span>
+        <button type="button" id="compactHeaderBtn" data-testid="compact-header-toggle" style="padding:8px 20px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-weight:600;">
+          Enable compact header
+        </button>
+        <span style="font-size:12px;color:var(--muted);">Hides the title, theme toggle, and description bar to maximize content space. Theme can still be changed above.</span>
       </div>
     </div>
     <div class="card">
@@ -1322,6 +1336,24 @@
     if (tbs) tbs.onclick = toggleTheme;
     // Apply saved theme immediately
     applyTheme(isLightTheme());
+
+    // ─── Compact header toggle ────────────────────────────────────────────────
+    function isCompactHeader() {
+      return localStorage.getItem('wyzeferal.compactHeader') === 'true';
+    }
+    function applyCompactHeader(compact) {
+      document.body.classList.toggle('compact-header', !!compact);
+      const btn = $('compactHeaderBtn');
+      if (btn) btn.textContent = compact ? 'Disable compact header' : 'Enable compact header';
+    }
+    function toggleCompactHeader() {
+      const next = !isCompactHeader();
+      localStorage.setItem('wyzeferal.compactHeader', next ? 'true' : 'false');
+      applyCompactHeader(next);
+    }
+    const chb = $('compactHeaderBtn');
+    if (chb) chb.onclick = toggleCompactHeader;
+    applyCompactHeader(isCompactHeader());
 
     function escapeHtml(s) {
       if (!s) return '';
