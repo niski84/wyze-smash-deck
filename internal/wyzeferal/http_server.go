@@ -164,6 +164,11 @@ func (s *HTTPServer) Routes(webDir string) http.Handler {
 	mux.Handle("/api/events", s.sseHub)
 
 	fs := http.FileServer(http.Dir(filepath.Clean(webDir)))
+	// /camera serves the standalone fullscreen stream page without the .html extension
+	cameraFile := filepath.Join(filepath.Clean(webDir), "camera.html")
+	mux.HandleFunc("/camera", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, cameraFile)
+	})
 	mux.Handle("/", fs)
 	return mux
 }

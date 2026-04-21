@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Doorbell · Live</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
+
+    #wrap {
+      position: relative;
+      width: 100vw;
+      height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
+
+    #v {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    /* Overlay — fades out when live */
+    #overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background: #000;
+      transition: opacity 0.6s ease;
+      pointer-events: none;
+    }
+    #overlay.hidden { opacity: 0; pointer-events: none; }
+
+    #overlay svg { opacity: 0.25; }
+
+    #status {
+      font-family: "Trebuchet MS", Arial, sans-serif;
+      font-size: 14px;
+      color: #666;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    #status.err { color: #d41919; }
+    #status.live { color: #7CFC95; }
+
+    /* Control bar — bottom, fades in on hover or when not live */
+    #controls {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: linear-gradient(transparent, rgba(0,0,0,0.75));
+      opacity: 0;
+      transition: opacity 0.25s;
+      pointer-events: none;
+    }
+    #wrap:hover #controls, #controls.always { opacity: 1; pointer-events: auto; }
+
+    #liveTag {
+      font-family: monospace;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: #7CFC95;
+      background: rgba(0,0,0,0.5);
+      border: 1px solid #7CFC9540;
+      border-radius: 4px;
+      padding: 3px 8px;
+      display: none;
+      margin-right: auto;
+    }
+    #liveTag.show { display: inline-block; }
+
+    .ctrl-btn {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 50%;
+      color: #eee;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s;
+      flex-shrink: 0;
+    }
+    .ctrl-btn:hover { background: rgba(255,255,255,0.18); }
+    .ctrl-btn.muted { border-color: #d4191960; color: #d41919; }
+    .ctrl-btn svg { width: 20px; height: 20px; fill: currentColor; }
+
+    .back-btn {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.5);
+      font-family: monospace;
+      font-size: 12px;
+      cursor: pointer;
+      margin-left: auto;
+      padding: 6px 0;
+    }
+    .back-btn:hover { color: #eee; }
+
+    /* Fullscreen prompt shown when autoFS fails */
+    #fsPrompt {
+      position: absolute;
+      bottom: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.7);
+      border: 1px solid #3b4a78;
+      border-radius: 8px;
+      color: #aaa;
+      font-family: monospace;
+      font-size: 12px;
+      padding: 8px 16px;
+      cursor: pointer;
+      display: none;
+      white-space: nowrap;
+    }
+    #fsPrompt:hover { color: #eee; border-color: #7CFC95; }
+  </style>
+</head>
+<body>
+<div id="wrap">
+  <video id="v" autoplay playsinline></video>
+
+  <div id="overlay">
+    <!-- App eye icon while loading -->
+    <svg width="48" height="48" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+      <rect width="32" height="32" rx="6" fill="#0d101a"/>
+      <path d="M3,8 L3,3 L8,3" fill="none" stroke="#3b4a78" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M24,3 L29,3 L29,8" fill="none" stroke="#3b4a78" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M3,24 L3,29 L8,29" fill="none" stroke="#3b4a78" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M24,29 L29,29 L29,24" fill="none" stroke="#3b4a78" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M5,16 C9,9 23,9 27,16 C23,23 9,23 5,16 Z" fill="#1a1e30" stroke="#3b4a78" stroke-width="1"/>
+      <circle cx="16" cy="16" r="5" fill="#d41919"/>
+      <circle cx="16" cy="16" r="2.5" fill="#0d101a"/>
+      <circle cx="14" cy="14.5" r="1.2" fill="white" opacity="0.65"/>
+    </svg>
+    <div id="status">Connecting…</div>
+  </div>
+
+  <!-- Bottom control bar -->
+  <div id="controls">
+    <!-- Mute toggle -->
+    <button class="ctrl-btn" id="muteBtn" onclick="toggleMute()" title="Toggle audio">
+      <!-- Speaker / unmuted icon (shown when audio is ON) -->
+      <svg id="iconSound" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+      </svg>
+      <!-- Muted icon (shown when muted) -->
+      <svg id="iconMute" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display:none">
+        <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+      </svg>
+    </button>
+
+    <span id="liveTag">● LIVE</span>
+
+    <!-- Fullscreen toggle -->
+    <button class="ctrl-btn" id="fsBtn" onclick="toggleFullscreen()" title="Fullscreen (F)">
+      <!-- Enter fullscreen -->
+      <svg id="iconExpand" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+      </svg>
+      <!-- Exit fullscreen -->
+      <svg id="iconCompress" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display:none">
+        <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
+      </svg>
+    </button>
+
+    <button class="back-btn" onclick="history.back()">← Back</button>
+  </div>
+
+  <div id="fsPrompt" onclick="toggleFullscreen()">Click to enter fullscreen</div>
+</div>
+
+<script>
+(function () {
+  const video      = document.getElementById('v');
+  const overlay    = document.getElementById('overlay');
+  const statusEl   = document.getElementById('status');
+  const liveTag    = document.getElementById('liveTag');
+  const controls   = document.getElementById('controls');
+  const fsPrompt   = document.getElementById('fsPrompt');
+  const muteBtn    = document.getElementById('muteBtn');
+  const iconSound  = document.getElementById('iconSound');
+  const iconMute   = document.getElementById('iconMute');
+  const iconExpand = document.getElementById('iconExpand');
+  const iconCompress = document.getElementById('iconCompress');
+
+  // Audio ON by default — video must start muted for autoplay, then we unmute
+  // once the stream is live (browsers block unmuted autoplay)
+  video.muted = true;
+  let audioEnabled = true; // desired state; applied once stream starts
+
+  let pc = null, ws = null, pingTimer = null;
+  let iceGraceTimer = null, reconnectTimer = null;
+  let reconnectAttempts = 0;
+  const MAX_RECONNECT = 3;
+  const ICE_GRACE_MS = 8000;
+
+  function uid() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+  }
+
+  function setStatus(msg, isErr, isLive) {
+    statusEl.textContent = msg;
+    statusEl.className = isErr ? 'err' : isLive ? 'live' : '';
+    if (isLive) {
+      overlay.classList.add('hidden');
+      liveTag.classList.add('show');
+      controls.classList.remove('always');
+    } else {
+      overlay.classList.remove('hidden');
+      liveTag.classList.remove('show');
+      controls.classList.add('always');
+    }
+  }
+
+  function toggleMute() {
+    audioEnabled = !audioEnabled;
+    video.muted = !audioEnabled;
+    muteBtn.classList.toggle('muted', !audioEnabled);
+    iconSound.style.display = audioEnabled ? '' : 'none';
+    iconMute.style.display  = audioEnabled ? 'none' : '';
+  }
+
+  function toggleFullscreen() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  }
+
+  document.addEventListener('fullscreenchange', () => {
+    const isFS = !!document.fullscreenElement;
+    iconExpand.style.display   = isFS ? 'none' : '';
+    iconCompress.style.display = isFS ? '' : 'none';
+  });
+
+  function stopStream(keepReconnect) {
+    clearInterval(pingTimer); pingTimer = null;
+    clearTimeout(iceGraceTimer); iceGraceTimer = null;
+    if (!keepReconnect) { clearTimeout(reconnectTimer); reconnectTimer = null; reconnectAttempts = 0; }
+    if (ws) { try { ws.close(); } catch (_) {} ws = null; }
+    if (pc) { pc.close(); pc = null; }
+    video.srcObject = null;
+  }
+
+  function scheduleReconnect() {
+    if (reconnectAttempts >= MAX_RECONNECT) {
+      setStatus('Stream unavailable — session cookie may need refreshing', true);
+      return;
+    }
+    reconnectAttempts++;
+    const delay = 10000 * reconnectAttempts;
+    setStatus('Reconnecting in ' + (delay / 1000) + 's… (' + reconnectAttempts + '/' + MAX_RECONNECT + ')', true);
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(() => { stopStream(true); startStream(true); }, delay);
+  }
+
+  async function startStream(force) {
+    if (pc) return;
+    setStatus('Connecting…');
+
+    let params;
+    try {
+      const url = '/api/camera/stream-token' + (force ? '?force=true' : '');
+      const r = await fetch(url);
+      const body = await r.json();
+      if (!body.success) throw new Error(body.error || 'token fetch failed');
+      params = body.data;
+      if (params.stale) {
+        setStatus('⚠ Credentials stale — update session cookie in Settings', true);
+        return;
+      }
+    } catch (e) {
+      setStatus('Token error: ' + e.message, true);
+      return;
+    }
+
+    const iceServers = (params.ice_servers || []).map(s => {
+      const cfg = { urls: s.url };
+      if (s.username) cfg.username = s.username;
+      if (s.credential) cfg.credential = s.credential;
+      return cfg;
+    });
+
+    const clientId = uid();
+    pc = new RTCPeerConnection({ iceServers, bundlePolicy: 'max-bundle' });
+    pc.addTransceiver('video', { direction: 'sendrecv' });
+    pc.addTransceiver('audio', { direction: 'sendrecv' });
+
+    pc.ontrack = (e) => {
+      const stream = e.streams?.[0] || (() => { const s = new MediaStream(); s.addTrack(e.track); return s; })();
+      video.srcObject = stream;
+      // Unmute now that stream is live (autoplay only allows muted start)
+      video.muted = !audioEnabled;
+      setStatus('● Live', false, true);
+      reconnectAttempts = 0;
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      const ice = pc?.iceConnectionState;
+      if (!ice) return;
+      if (ice === 'connected' || ice === 'completed') {
+        clearTimeout(iceGraceTimer); iceGraceTimer = null;
+        reconnectAttempts = 0;
+        setStatus('● Live', false, true);
+      } else if (ice === 'failed') {
+        clearTimeout(iceGraceTimer); iceGraceTimer = null;
+        scheduleReconnect();
+      } else if (ice === 'disconnected') {
+        clearTimeout(iceGraceTimer);
+        setStatus('Stream interrupted — waiting…', true);
+        iceGraceTimer = setTimeout(() => {
+          if (pc && (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed')) {
+            scheduleReconnect();
+          }
+        }, ICE_GRACE_MS);
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      if (pc?.connectionState === 'failed') { clearTimeout(iceGraceTimer); iceGraceTimer = null; scheduleReconnect(); }
+    };
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    const iceBuf = [];
+    let wsReady = false;
+    const wsSend = (obj) => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj)); };
+
+    pc.onicecandidate = ({ candidate }) => {
+      if (!candidate) return;
+      const msg = { action: 'ICE_CANDIDATE', recipientClientId: clientId, messagePayload: btoa(JSON.stringify({ candidate: candidate.candidate, sdpMid: candidate.sdpMid, sdpMLineIndex: candidate.sdpMLineIndex })) };
+      if (wsReady) wsSend(msg); else iceBuf.push(msg);
+    };
+
+    ws = new WebSocket(params.signaling_url);
+    ws.onopen = () => {
+      wsReady = true;
+      wsSend({ action: 'SDP_OFFER', recipientClientId: clientId, messagePayload: btoa(JSON.stringify({ type: offer.type, sdp: offer.sdp })) });
+      iceBuf.forEach(wsSend); iceBuf.length = 0;
+      pingTimer = setInterval(() => wsSend({ type: 'ping' }), 30000);
+    };
+    ws.onmessage = async (e) => {
+      let data; try { data = JSON.parse(e.data); } catch (_) { return; }
+      if (!data.messagePayload) return;
+      let decoded; try { decoded = JSON.parse(atob(data.messagePayload)); } catch (_) { return; }
+      if (!data.messageType || data.messageType === 'SDP_ANSWER') {
+        try { await pc.setRemoteDescription(new RTCSessionDescription(decoded)); } catch (_) {}
+      } else if (data.messageType === 'ICE_CANDIDATE') {
+        try { await pc.addIceCandidate(new RTCIceCandidate(decoded)); } catch (_) {}
+      }
+    };
+    ws.onerror = () => setStatus('Signaling error', true);
+    ws.onclose = (e) => {
+      if (pc && pc.iceConnectionState !== 'connected' && pc.iceConnectionState !== 'completed') {
+        setStatus('Signaling closed (code ' + e.code + ')', true);
+      }
+    };
+  }
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !document.fullscreenElement) history.back();
+    if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+    if (e.key === 'm' || e.key === 'M') toggleMute();
+  });
+
+  // ── Boot ─────────────────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    startStream();
+
+    // Try auto-fullscreen; if blocked show the prompt
+    document.documentElement.requestFullscreen().catch(() => {
+      fsPrompt.style.display = 'block';
+      setTimeout(() => { fsPrompt.style.display = 'none'; }, 5000);
+    });
+  });
+})();
+</script>
+</body>
+</html>
