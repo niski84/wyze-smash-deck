@@ -195,6 +195,18 @@ connection establishment will fail silently. Refresh well within the 5-minute wi
 - JWT: refresh after 110 minutes (10-minute safety margin on the 2-hour TTL)
 - Stream params: refresh every 3 minutes; serve stale up to 4 minutes if refresh fails
 
+**When the session cookie expires, the failure cascade is:**
+1. JWT refresh → 401 (session cookie rejected)
+2. Go falls back to the last cached JWT
+3. `get-streams` → 401 `code=2001` (cached JWT is now also expired)
+4. Background refresher logs errors every 3 minutes but keeps retrying
+5. Stream-token endpoint returns HTTP 503 or serves stale params flagged as `stale: true`
+6. WebRTC connects briefly using old TURN credentials, then disconnects in < 5 min
+
+**Design implication:** your `/api/camera/stream-token` endpoint should return a `stale`
+boolean and `params_age_seconds` so the frontend can surface a specific actionable message
+("session cookie expired — update in Settings") rather than a generic disconnect.
+
 ---
 
 ## Phase 6 — Go Architecture
@@ -264,11 +276,37 @@ the HTTP body.
 Success is `"1"` (string). If you compare to integer `1` you'll silently treat all responses
 as errors.
 
-**7. Session cookie expiry**  
-The Flask session is set with `_remember_seconds: 604800` (~7 days). When it expires, you
-need to log back into `my.wyze.com` and re-extract the cookie. There's no programmatic
-way to get a new one — this is a manual bootstrapping step that happens roughly weekly.
-Consider adding a health check endpoint that reports the age of the session cookie.
+**7. Session cookie expiry — the most operationally painful part**  
+The Flask session is set with `_remember_seconds: 604800` (~7 days). When it expires,
+`services.wyze.com/api/v2/santa/refresh` returns HTTP 401 `"You are not authorized."` —
+which is exactly the same error you get for a wrong cookie value. There is no programmatic
+renewal path; you must re-extract it from a browser that has an active `my.wyze.com` session.
+
+**What expiry looks like in practice:**
+- Background refresher logs: `JWT refresh failed (HTTP 401: You are not authorized.)`
+- Immediately followed by: `get-streams returned HTTP 401: code=2001 msg=access token is error`
+- The stream appears to connect briefly (using the last cached TURN credentials), then
+  disconnects within 5 minutes as those credentials expire
+- The retry button doesn't help — it just re-serves the same stale cached params
+
+**How to re-extract the cookie (browser DevTools):**
+1. Open `my.wyze.com` in Chrome and make sure you're logged in
+2. DevTools → Application → Cookies → `services.wyze.com`
+3. Copy the `session` cookie value (it starts with `.eJzt...`)
+4. Update `wyze_web_session_cookie` in your settings file and restart the server
+
+**How to re-extract programmatically (if Chrome is running locally):**
+```python
+# browser-harness (or any CDP client connected to Chrome)
+cookies = cdp("Network.getCookies", urls=["https://services.wyze.com"])
+session = next(c for c in cookies["cookies"] if c["name"] == "session")
+print(session["value"])
+```
+
+**Operationally:** set a calendar reminder for day 6 after initial setup. The server
+will work without interruption for days 1–6, then streams will start dropping. Add a
+`/api/health` or settings page indicator that shows how old the session cookie is so
+you know before it fails rather than after.
 
 ---
 
