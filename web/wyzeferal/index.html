@@ -741,7 +741,6 @@
         <div style="margin-left:auto;display:flex;gap:8px;">
           <span id="camOnlineStatus" style="font-size:12px;line-height:32px;color:var(--muted);"></span>
           <a href="https://my.wyze.com" target="_blank" rel="noopener" class="secondary" style="padding:7px 14px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text);text-decoration:none;font-size:13px;font-weight:600;">↗ Open in Wyze</a>
-          <button type="button" class="secondary" id="camEmbedToggle">📷 Load Feed</button>
         </div>
       </div>
 
@@ -761,9 +760,8 @@
             <rect x="6" y="7" width="7" height="4" rx="2" fill="#fff"/>
             <circle cx="25" cy="13" r="1.5" fill="#d41919"/>
           </svg>
-          <div style="color:var(--muted);font-size:13px;margin-bottom:16px;">Click <strong>Load Feed</strong> to connect live via WebRTC</div>
+          <div style="color:var(--muted);font-size:13px;margin-bottom:16px;">Connecting to live feed…</div>
           <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-            <button type="button" class="primary" id="camEmbedBtn">📷 Load Feed</button>
             <a href="https://my.wyze.com" target="_blank" rel="noopener" class="secondary" style="padding:8px 20px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text);text-decoration:none;font-size:13px;font-weight:600;">↗ Open full Wyze app</a>
           </div>
         </div>
@@ -2272,13 +2270,15 @@
         };
       }
 
-      $('camEmbedToggle').onclick = startStream;
       $('camEmbedBtn').onclick = startStream;
       $('camStopBtn').onclick = stopStream;
 
       document.querySelectorAll('.tab-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
-          if (btn.dataset.tab === 'camera') loadCamInfo();
+          if (btn.dataset.tab === 'camera') {
+            loadCamInfo();
+            startStream();
+          }
         });
       });
 
