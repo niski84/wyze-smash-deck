@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Wyze Feral Smash Deck</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <style>
     :root {
       --bg: #080a10;
@@ -434,12 +435,201 @@
     body.compact-header .device-name { display: none; }
     body.compact-header #themeToggleBtn { display: none; }
     body.compact-header .tabs { margin-bottom: 4px; }
+
+    /* ── Connection LED ──────────────────────────────────────────────── */
+    .conn-led-wrap {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      cursor: default;
+      user-select: none;
+    }
+    .conn-led {
+      display: block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      /* dark bezel ring */
+      outline: 2px solid rgba(0,0,0,0.55);
+      outline-offset: 1px;
+      transition: background 0.5s, box-shadow 0.5s;
+      background: radial-gradient(circle at 38% 32%, #666, #333);
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06);
+    }
+    .conn-led.online {
+      background: radial-gradient(circle at 38% 32%, #aaff99, #00cc44);
+      box-shadow:
+        inset 0 1px 2px rgba(0,0,0,0.35),
+        0 0 7px 2px #00ee55,
+        0 0 18px 5px rgba(0,220,70,0.35);
+    }
+    .conn-led.offline {
+      background: radial-gradient(circle at 38% 32%, #ff9999, #cc1515);
+      box-shadow:
+        inset 0 1px 2px rgba(0,0,0,0.35),
+        0 0 7px 2px #ff2222,
+        0 0 18px 5px rgba(220,0,0,0.45);
+      animation: led-pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes led-pulse {
+      0%, 100% {
+        box-shadow:
+          inset 0 1px 2px rgba(0,0,0,0.35),
+          0 0 7px 2px #ff2222,
+          0 0 18px 5px rgba(220,0,0,0.45);
+      }
+      50% {
+        box-shadow:
+          inset 0 1px 2px rgba(0,0,0,0.35),
+          0 0 12px 4px #ff3333,
+          0 0 28px 9px rgba(220,0,0,0.6);
+      }
+    }
+    .conn-led-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      line-height: 1;
+    }
+    .conn-led.online  ~ .conn-led-label { color: #55dd77; }
+    .conn-led.offline ~ .conn-led-label { color: #ff6b6b; }
+
+    /* ── Camera panel ─────────────────────────────────────────────────────── */
+    .cam-embed-wrap {
+      width: 100%;
+      aspect-ratio: 16/9;
+      background: #000;
+      border-radius: 10px;
+      overflow: hidden;
+      max-width: 900px;
+    }
+    .cam-embed-wrap video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border: none;
+      display: block;
+    }
+    #camStreamStatus {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 6px;
+      min-height: 18px;
+      font-weight: 500;
+    }
+    #camStreamStatus.err {
+      color: #ff6b6b;
+      background: rgba(255,107,107,0.08);
+      border: 1px solid rgba(255,107,107,0.3);
+      border-radius: 6px;
+      padding: 6px 10px;
+    }
+    #camDebugLog {
+      font-size: 11px;
+      font-family: monospace;
+      color: var(--muted);
+      background: rgba(0,0,0,0.3);
+      border-radius: 6px;
+      padding: 6px 8px;
+      margin-top: 6px;
+      max-height: 120px;
+      overflow-y: auto;
+      display: none;
+      white-space: pre-wrap;
+    }
+    #camRetryBtn {
+      display: none;
+      margin-top: 8px;
+    }
+    .cam-embed-placeholder {
+      width: 100%;
+      max-width: 900px;
+      aspect-ratio: 16/9;
+      background: #0d101a;
+      border: 1px dashed #2a324d;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .cam-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+    }
+    .cam-badge-idle    { background: #2a324d; color: var(--muted); }
+    .cam-badge-motion  { background: #d41919; color: #fff; animation: cam-pulse 1s infinite; }
+    @keyframes cam-pulse { 0%,100%{opacity:1} 50%{opacity:0.55} }
+
+    /* ── Fullscreen camera modal ──────────────────────────────────────────── */
+    .cam-modal-bg {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(0,0,0,0.92);
+      align-items: center;
+      justify-content: center;
+    }
+    .cam-modal-bg.open { display: flex; }
+    .cam-modal {
+      background: #0d101a;
+      border: 1px solid #3b4a78;
+      border-radius: 14px;
+      max-width: min(96vw, 960px);
+      width: 100%;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .cam-modal-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .cam-modal-title {
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: #ff6b6b;
+      flex: 1;
+    }
+    .cam-modal-close {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 1.3rem;
+      cursor: pointer;
+      padding: 2px 8px;
+    }
+    .cam-modal-close:hover { color: var(--text); }
+    .cam-modal-body iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+    .cam-modal-footer {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
   </style>
 </head>
 <body>
   <div id="pageHeader" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
     <div class="device-name" data-testid="page-title" style="margin-bottom:0;">Wyze Feral Smash Deck</div>
     <button type="button" id="themeToggleBtn" data-testid="theme-toggle" title="Toggle dark/light theme">🌙 Dark</button>
+    <span class="conn-led-wrap" id="connLedWrap" title="Server connection">
+      <span class="conn-led" id="connLed"></span>
+      <span class="conn-led-label" id="connLedLabel">—</span>
+    </span>
   </div>
   <div class="theme-hero">
     Automations with <strong>manual</strong> vs <strong>scheduled</strong> runs, scene <strong>delays</strong> (stagger), and advanced calendar options.
@@ -449,6 +639,7 @@
     <button type="button" class="tab-btn active" data-tab="switches" data-testid="tab-switches">Switches</button>
     <button type="button" class="tab-btn" data-tab="automations" data-testid="tab-automations">Automations</button>
     <button type="button" class="tab-btn" data-tab="settings" data-testid="tab-settings">Settings &amp; logs</button>
+    <button type="button" class="tab-btn" data-tab="camera" data-testid="tab-camera">📷 Camera</button>
   </div>
 
   <section id="panel-switches" class="panel active">
@@ -540,6 +731,80 @@
       <pre class="log" id="logPre" data-testid="activity-log"></pre>
     </div>
   </section>
+
+  <!-- Camera panel -->
+  <section id="panel-camera" class="panel">
+    <div class="card" style="padding-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;font-size:1.2rem;">Front Door Camera</h2>
+        <span id="camMotionBadge" class="cam-badge cam-badge-idle">No motion</span>
+        <div style="margin-left:auto;display:flex;gap:8px;">
+          <span id="camOnlineStatus" style="font-size:12px;line-height:32px;color:var(--muted);"></span>
+          <a href="https://my.wyze.com" target="_blank" rel="noopener" class="secondary" style="padding:7px 14px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text);text-decoration:none;font-size:13px;font-weight:600;">↗ Open in Wyze</a>
+          <button type="button" class="secondary" id="camEmbedToggle">📷 Load Feed</button>
+        </div>
+      </div>
+
+      <!-- WebRTC live video -->
+      <div id="camEmbedWrap" class="cam-embed-wrap" style="display:none;position:relative;">
+        <video id="camVideo" autoplay playsinline muted></video>
+        <button type="button" id="camStopBtn" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.6);border:1px solid #555;color:#eee;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;">■ Stop</button>
+      </div>
+      <div id="camEmbedPlaceholder" class="cam-embed-placeholder">
+        <div>
+          <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 32 32" style="opacity:0.3;margin-bottom:12px;">
+            <rect width="32" height="32" rx="6" fill="#d41919"/>
+            <rect x="4" y="10" width="24" height="16" rx="3" fill="#fff"/>
+            <circle cx="16" cy="18" r="5.5" fill="#1a1e30"/>
+            <circle cx="16" cy="18" r="3.5" fill="#4a6fa5"/>
+            <circle cx="14.5" cy="16.5" r="1" fill="#fff" opacity="0.6"/>
+            <rect x="6" y="7" width="7" height="4" rx="2" fill="#fff"/>
+            <circle cx="25" cy="13" r="1.5" fill="#d41919"/>
+          </svg>
+          <div style="color:var(--muted);font-size:13px;margin-bottom:16px;">Click <strong>Load Feed</strong> to connect live via WebRTC</div>
+          <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+            <button type="button" class="primary" id="camEmbedBtn">📷 Load Feed</button>
+            <a href="https://my.wyze.com" target="_blank" rel="noopener" class="secondary" style="padding:8px 20px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text);text-decoration:none;font-size:13px;font-weight:600;">↗ Open full Wyze app</a>
+          </div>
+        </div>
+      </div>
+      <div id="camStreamStatus"></div>
+      <button type="button" class="secondary" id="camRetryBtn" onclick="retryStream()">↺ Retry</button>
+      <div id="camDebugLog"></div>
+
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:var(--muted);">
+        <span id="camModel"></span>
+        <span id="camLastTs"></span>
+        <span style="margin-left:auto;">SSE webhook alerts active · motion triggers fullscreen alert</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Fullscreen motion alert modal -->
+  <div id="camModal" class="cam-modal-bg" role="dialog" aria-modal="true" aria-label="Motion alert — front door">
+    <div class="cam-modal">
+      <div class="cam-modal-header">
+        <span class="cam-modal-title">🚨 Motion Detected — Front Door</span>
+        <button type="button" class="cam-modal-close" id="camModalClose" aria-label="Close">✕</button>
+      </div>
+      <div class="cam-modal-body">
+        <div id="camModalIframeWrap" style="display:none;width:100%;aspect-ratio:16/9;background:#000;border-radius:8px;overflow:hidden;">
+          <video id="camModalVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;display:block;"></video>
+        </div>
+        <div id="camModalCta" style="text-align:center;padding:32px 16px;">
+          <div style="font-size:48px;margin-bottom:12px;">🔔</div>
+          <div style="color:var(--text);font-size:15px;margin-bottom:20px;">Someone may be at the front door.</div>
+          <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+            <button type="button" class="primary" id="camModalLoadBtn">📷 Load Live Feed</button>
+            <a href="https://my.wyze.com" target="_blank" rel="noopener" class="secondary" style="padding:8px 20px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text);text-decoration:none;font-size:13px;font-weight:600;">↗ Open Wyze App</a>
+          </div>
+        </div>
+      </div>
+      <div class="cam-modal-footer">
+        <span id="camModalTs" class="muted" style="font-size:12px;"></span>
+      </div>
+    </div>
+  </div>
 
   <div class="modal-bg" id="autoModal" role="dialog" aria-modal="true">
     <div class="modal">
@@ -669,10 +934,35 @@
         opt.headers['Content-Type'] = 'application/json';
         opt.body = JSON.stringify(body);
       }
-      const res = await fetch(path, opt);
+      let res;
+      try {
+        res = await fetch(path, opt);
+      } catch (netErr) {
+        const e = new Error(netErr.message || 'Network error');
+        e.isNetworkError = true;
+        throw e;
+      }
       const j = await res.json();
       if (!j.success) throw new Error(j.error || 'API error');
       return j.data;
+    }
+
+    function setConnLed(state) {
+      const led   = $('connLed');
+      const label = $('connLedLabel');
+      const wrap  = $('connLedWrap');
+      if (!led) return;
+      led.className = 'conn-led' + (state ? ' ' + state : '');
+      if (state === 'online') {
+        if (label) label.textContent = 'Online';
+        if (wrap)  wrap.title = 'Server connected';
+      } else if (state === 'offline') {
+        if (label) label.textContent = 'Offline';
+        if (wrap)  wrap.title = 'Server unreachable — check network or VPN';
+      } else {
+        if (label) label.textContent = '—';
+        if (wrap)  wrap.title = 'Connecting…';
+      }
     }
 
     function showToast(msg, type = 'warn', durationMs = 4000) {
@@ -1277,6 +1567,7 @@
       $('deviceStatus').className = '';
       try {
         const d = await api('GET', '/api/devices');
+        setConnLed('online');
         devicesCache = applyPinnedStates(d.devices || []);
         const ok = d.configured !== false;
         $('deviceStatus').textContent = ok
@@ -1286,7 +1577,13 @@
       } catch (e) {
         devicesCache = [];
         const msg = e && e.message ? e.message : String(e);
-        $('deviceStatus').textContent = 'Wyze list failed: ' + msg;
+        if (e.isNetworkError) {
+          setConnLed('offline');
+          $('deviceStatus').textContent = 'Server unreachable';
+        } else {
+          setConnLed('online'); // server answered; Wyze API issue
+          $('deviceStatus').textContent = 'Wyze list failed: ' + msg;
+        }
         $('deviceStatus').className = 'err';
         console.error('[SmashDeck] loadDevices failed', e);
       }
@@ -1741,6 +2038,317 @@
       } catch (e) {
         console.error('[SmashDeck] init failed', e);
       }
+    })();
+
+    // ── Camera panel — WebRTC live stream ────────────────────────────────
+    (function () {
+      let pc = null, ws = null, pingTimer = null, liveStream = null;
+      let reconnectAttempts = 0, reconnectTimer = null, iceGraceTimer = null;
+      const MAX_RECONNECT = 3;
+      const RECONNECT_BASE_MS = 10000; // progressive: 10s, 20s, 30s
+      const ICE_GRACE_MS = 8000;       // wait before treating 'disconnected' as fatal
+
+      function uid() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+          const r = Math.random() * 16 | 0;
+          return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+        });
+      }
+
+      const _dbgLines = [];
+      function dbg(msg) {
+        const ts = new Date().toLocaleTimeString();
+        _dbgLines.push(`[${ts}] ${msg}`);
+        if (_dbgLines.length > 40) _dbgLines.shift();
+        const el = $('camDebugLog');
+        if (el) { el.textContent = _dbgLines.join('\n'); el.style.display = 'block'; el.scrollTop = el.scrollHeight; }
+      }
+
+      function setStatus(msg, isErr) {
+        const el = $('camStreamStatus');
+        if (!el) return;
+        el.textContent = msg;
+        el.className = isErr ? 'err' : '';
+        const retryBtn = $('camRetryBtn');
+        if (retryBtn) retryBtn.style.display = isErr ? 'inline-block' : 'none';
+        if (msg) dbg((isErr ? 'ERROR: ' : '') + msg);
+      }
+
+      function scheduleReconnect() {
+        if (reconnectAttempts >= MAX_RECONNECT) {
+          setStatus('Stream unavailable after ' + MAX_RECONNECT + ' attempts — session cookie may need updating in Settings', true);
+          return;
+        }
+        reconnectAttempts++;
+        const delay = RECONNECT_BASE_MS * reconnectAttempts;
+        setStatus('Reconnecting in ' + (delay / 1000) + 's… (' + reconnectAttempts + '/' + MAX_RECONNECT + ')', true);
+        clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(() => {
+          stopStream(true); // true = keep reconnect state
+          startStream(true); // true = force fresh params from server
+        }, delay);
+      }
+
+      function retryStream() {
+        reconnectAttempts = 0; // manual retry resets the counter
+        stopStream();
+        setStatus('');
+        const retryBtn = $('camRetryBtn');
+        if (retryBtn) retryBtn.style.display = 'none';
+        startStream(true);
+      }
+
+      function attachStream(videoEl) {
+        if (liveStream && videoEl && videoEl.srcObject !== liveStream) {
+          videoEl.srcObject = liveStream;
+        }
+      }
+
+      function stopStream(keepReconnectState) {
+        clearInterval(pingTimer); pingTimer = null;
+        clearTimeout(iceGraceTimer); iceGraceTimer = null;
+        if (!keepReconnectState) {
+          clearTimeout(reconnectTimer); reconnectTimer = null;
+          reconnectAttempts = 0;
+        }
+        if (ws) { try { ws.close(); } catch (_) {} ws = null; }
+        if (pc) { pc.close(); pc = null; }
+        liveStream = null;
+        const v1 = $('camVideo'), v2 = $('camModalVideo');
+        if (v1) v1.srcObject = null;
+        if (v2) v2.srcObject = null;
+        $('camEmbedWrap').style.display = 'none';
+        $('camEmbedPlaceholder').style.display = 'flex';
+        if (!keepReconnectState) setStatus('');
+      }
+
+      async function startStream(force) {
+        if (pc) return; // already running
+        setStatus('Connecting…');
+        dbg('startStream() called force=' + !!force);
+        $('camEmbedPlaceholder').style.display = 'none';
+        $('camEmbedWrap').style.display = 'block';
+
+        let params;
+        try {
+          const url = '/api/camera/stream-token' + (force ? '?force=true' : '');
+          dbg('fetching ' + url + '…');
+          params = await api('GET', url);
+          const age = params.params_age_seconds != null ? params.params_age_seconds + 's' : '?';
+          dbg('token OK — device=' + (params.device_id || '?') + ' iceServers=' + (params.ice_servers || []).length + ' age=' + age + (params.stale ? ' ⚠ STALE' : ''));
+          if (params.stale) {
+            setStatus('⚠ TURN credentials stale — session cookie likely expired. Update it in Settings.', true);
+            $('camEmbedPlaceholder').style.display = 'flex';
+            $('camEmbedWrap').style.display = 'none';
+            return;
+          }
+        } catch (e) {
+          const msg = String(e.message || e);
+          dbg('token FAILED: ' + msg);
+          setStatus('Stream token error: ' + msg, true);
+          $('camEmbedPlaceholder').style.display = 'flex';
+          $('camEmbedWrap').style.display = 'none';
+          return;
+        }
+
+        const clientId = uid();
+        const iceServers = (params.ice_servers || []).map(s => {
+          const cfg = { urls: s.url };
+          if (s.username) cfg.username = s.username;
+          if (s.credential) cfg.credential = s.credential;
+          return cfg;
+        });
+
+        pc = new RTCPeerConnection({ iceServers, bundlePolicy: 'max-bundle' });
+
+        pc.addTransceiver('video', { direction: 'sendrecv' });
+        pc.addTransceiver('audio', { direction: 'sendrecv' });
+
+        pc.ontrack = (e) => {
+          dbg('track received: ' + e.track.kind + ' readyState=' + e.track.readyState);
+          if (e.streams && e.streams[0]) {
+            liveStream = e.streams[0];
+          } else {
+            if (!liveStream) liveStream = new MediaStream();
+            liveStream.addTrack(e.track);
+          }
+          attachStream($('camVideo'));
+          attachStream($('camModalVideo'));
+          setStatus('● Live');
+          $('camStreamStatus').style.color = '#7CFC95';
+        };
+
+        pc.oniceconnectionstatechange = () => {
+          if (!pc) return;
+          const ice = pc.iceConnectionState;
+          const conn = pc.connectionState;
+          dbg('ICE: ' + ice + ' | conn: ' + conn);
+          if (ice === 'connected' || ice === 'completed') {
+            clearTimeout(iceGraceTimer); iceGraceTimer = null;
+            reconnectAttempts = 0;
+            setStatus('● Live');
+            $('camStreamStatus').style.color = '#7CFC95';
+          } else if (ice === 'failed') {
+            clearTimeout(iceGraceTimer); iceGraceTimer = null;
+            scheduleReconnect();
+          } else if (ice === 'disconnected') {
+            // May self-heal — give it a grace period before treating as fatal
+            clearTimeout(iceGraceTimer);
+            setStatus('Stream interrupted — waiting…', true);
+            iceGraceTimer = setTimeout(() => {
+              if (pc && (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed')) {
+                scheduleReconnect();
+              }
+            }, ICE_GRACE_MS);
+          }
+        };
+
+        pc.onsignalingstatechange = () => dbg('signaling: ' + pc.signalingState);
+        pc.onconnectionstatechange = () => {
+          if (!pc) return;
+          dbg('conn: ' + pc.connectionState);
+          if (pc.connectionState === 'failed') {
+            clearTimeout(iceGraceTimer); iceGraceTimer = null;
+            scheduleReconnect();
+          }
+        };
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        const iceBuf = [];
+        let wsReady = false;
+
+        function wsSend(obj) {
+          if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+        }
+
+        pc.onicecandidate = ({ candidate }) => {
+          if (!candidate) return;
+          const msg = {
+            action: 'ICE_CANDIDATE',
+            recipientClientId: clientId,
+            messagePayload: btoa(JSON.stringify({
+              candidate: candidate.candidate,
+              sdpMid: candidate.sdpMid,
+              sdpMLineIndex: candidate.sdpMLineIndex,
+            })),
+          };
+          if (wsReady) wsSend(msg); else iceBuf.push(msg);
+        };
+
+        dbg('connecting WS: ' + params.signaling_url.slice(0, 60) + '…');
+        ws = new WebSocket(params.signaling_url);
+        ws.onopen = () => {
+          wsReady = true;
+          dbg('WS open — sending SDP offer');
+          wsSend({ action: 'SDP_OFFER', recipientClientId: clientId, messagePayload: btoa(JSON.stringify({ type: offer.type, sdp: offer.sdp })) });
+          iceBuf.forEach(wsSend); iceBuf.length = 0;
+          pingTimer = setInterval(() => wsSend({ type: 'ping' }), 30000);
+        };
+        ws.onmessage = async (e) => {
+          let data; try { data = JSON.parse(e.data); } catch (_) { return; }
+          if (!data.messagePayload) return;
+          let decoded; try { decoded = JSON.parse(atob(data.messagePayload)); } catch (_) { return; }
+          if (!data.messageType || data.messageType === 'SDP_ANSWER') {
+            dbg('SDP answer received (type=' + decoded.type + ')');
+            try { await pc.setRemoteDescription(new RTCSessionDescription(decoded)); dbg('setRemoteDescription OK'); }
+            catch (err) { dbg('setRemoteDescription FAILED: ' + err.message); setStatus('SDP error: ' + err.message, true); }
+          } else if (data.messageType === 'ICE_CANDIDATE') {
+            dbg('ICE candidate from camera');
+            try { await pc.addIceCandidate(new RTCIceCandidate(decoded)); } catch (_) {}
+          } else {
+            dbg('unknown msg type: ' + data.messageType);
+          }
+        };
+        ws.onerror = (e) => { dbg('WS error'); setStatus('Signaling WebSocket error', true); };
+        ws.onclose = (e) => {
+          dbg('WS closed code=' + e.code);
+          // Signaling WS closes normally after ICE connects — only flag as error
+          // if there's no active peer connection yet
+          if (pc && pc.iceConnectionState !== 'connected' && pc.iceConnectionState !== 'completed') {
+            setStatus('Signaling disconnected (code ' + e.code + ')', true);
+          }
+        };
+      }
+
+      $('camEmbedToggle').onclick = startStream;
+      $('camEmbedBtn').onclick = startStream;
+      $('camStopBtn').onclick = stopStream;
+
+      document.querySelectorAll('.tab-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          if (btn.dataset.tab === 'camera') loadCamInfo();
+        });
+      });
+
+      function openCamModal(fromMotion) {
+        $('camModal').classList.add('open');
+        if (liveStream) {
+          $('camModalCta').style.display = 'none';
+          $('camModalIframeWrap').style.display = 'block';
+          attachStream($('camModalVideo'));
+        } else {
+          $('camModalCta').style.display = 'block';
+          $('camModalIframeWrap').style.display = 'none';
+        }
+        if (fromMotion) {
+          $('camMotionBadge').className = 'cam-badge cam-badge-motion';
+          $('camMotionBadge').textContent = 'Motion!';
+          $('camModalTs').textContent = 'Detected ' + new Date().toLocaleTimeString();
+        }
+      }
+
+      function closeCamModal() {
+        $('camModal').classList.remove('open');
+        $('camMotionBadge').className = 'cam-badge cam-badge-idle';
+        $('camMotionBadge').textContent = 'No motion';
+      }
+
+      $('camModalClose').onclick = () => closeCamModal();
+      $('camModal').addEventListener('click', (e) => { if (e.target === $('camModal')) closeCamModal(); });
+      $('camModalLoadBtn').onclick = async () => {
+        $('camModalCta').style.display = 'none';
+        $('camModalIframeWrap').style.display = 'block';
+        if (!liveStream) await startStream();
+        attachStream($('camModalVideo'));
+      };
+
+      window._camOpenModal = openCamModal;
+      window._camCloseModal = closeCamModal;
+    })();
+
+    async function loadCamInfo() {
+      try {
+        const info = await api('GET', '/api/camera/info?name=doorbell');
+        if ($('camOnlineStatus')) $('camOnlineStatus').textContent = info.online ? '🟢 Online' : '🔴 Offline';
+        if ($('camModel')) $('camModel').textContent = 'Model: ' + (info.model || '—');
+        if (info.thumbnail_ts && $('camLastTs'))
+          $('camLastTs').textContent = 'Last event: ' + new Date(info.thumbnail_ts).toLocaleString();
+      } catch (_) {}
+    }
+
+    // ── SSE — UniFi motion webhook listener ──────────────────────────────
+    (function initSSE() {
+      let es;
+      function connect() {
+        es = new EventSource('/api/events');
+        es.onmessage = (e) => {
+          try {
+            const ev = JSON.parse(e.data);
+            if (ev.type === 'motion') {
+              console.info('[SmashDeck] motion event', ev.payload);
+              window._camOpenModal && window._camOpenModal(true);
+              showToast('🚨 Motion detected at front door!', 'warn', 6000);
+            }
+          } catch (_) {}
+        };
+        es.onerror = () => {
+          es.close();
+          setTimeout(connect, 5000); // reconnect on drop
+        };
+      }
+      connect();
     })();
   </script>
   <div id="toastContainer"></div>

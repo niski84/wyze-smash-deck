@@ -246,35 +246,46 @@ func (s *HTTPServer) handleCameraStreamToken(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	force := r.URL.Query().Get("force") == "true"
+
 	p := s.streamRefresher.get()
-	if p == nil {
-		// Nothing cached yet — try a synchronous fetch (first startup)
+	if p == nil || force {
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
 		if err := s.streamRefresher.refresh(ctx); err != nil {
-			writeJSON(w, http.StatusServiceUnavailable, apiResp{
-				Success: false, Error: "stream params not yet available: " + err.Error(),
-			})
-			return
+			if p == nil {
+				writeJSON(w, http.StatusServiceUnavailable, apiResp{
+					Success: false, Error: "stream params unavailable: " + err.Error(),
+				})
+				return
+			}
+			// refresh failed but we have cached params — serve them with a stale flag
+			log.Printf("[stream-token] force refresh failed (%v), serving cached params age=%s", err, time.Since(p.CapturedAt).Round(time.Second))
+		} else {
+			p = s.streamRefresher.get()
 		}
-		p = s.streamRefresher.get()
 	}
 
-	if p == nil || time.Since(p.CapturedAt) > streamStaleCutoff {
+	if p == nil {
 		writeJSON(w, http.StatusServiceUnavailable, apiResp{
-			Success: false, Error: "stream params stale — refresher may be failing",
+			Success: false, Error: "stream params not available",
 		})
 		return
 	}
+
+	ageSeconds := int(time.Since(p.CapturedAt).Seconds())
+	stale := ageSeconds > int(streamStaleCutoff.Seconds())
 
 	iceList := make([]map[string]any, len(p.ICEServers))
 	for i, ice := range p.ICEServers {
 		iceList[i] = map[string]any{"url": ice.URL, "username": ice.Username, "credential": ice.Credential}
 	}
 	writeJSON(w, http.StatusOK, apiResp{Success: true, Data: map[string]any{
-		"signaling_url": p.SignalingURL,
-		"ice_servers":   iceList,
-		"device_id":     p.DeviceID,
+		"signaling_url":      p.SignalingURL,
+		"ice_servers":        iceList,
+		"device_id":          p.DeviceID,
+		"params_age_seconds": ageSeconds,
+		"stale":              stale,
 	}})
 }
 
