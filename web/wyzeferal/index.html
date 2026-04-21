@@ -662,6 +662,86 @@
     .cam-badge-motion  { background: #d41919; color: #fff; animation: cam-pulse 1s infinite; }
     @keyframes cam-pulse { 0%,100%{opacity:1} 50%{opacity:0.55} }
 
+    /* ── Motion activity timeline ─────────────────────────────────────────── */
+    .cam-timeline {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      max-width: 900px;
+    }
+    .cam-timeline-hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 14px;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+    }
+    .cam-tl-clear {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 11px;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .cam-tl-clear:hover { color: var(--text); background: var(--border); }
+    .cam-timeline-list {
+      max-height: 210px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+    .cam-tl-empty {
+      padding: 22px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .cam-tl-row {
+      display: grid;
+      grid-template-columns: 8px 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .cam-tl-row:last-child { border-bottom: none; }
+    .cam-tl-row.new { animation: tl-slide-in 0.28s ease; }
+    @keyframes tl-slide-in { from { opacity:0; transform:translateY(-5px); } to { opacity:1; transform:none; } }
+    .cam-tl-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .cam-tl-dot.motion   { background: #d41919; }
+    .cam-tl-dot.person   { background: #e8a020; }
+    .cam-tl-dot.vehicle  { background: #4a90d9; }
+    .cam-tl-dot.animal   { background: #7CFC95; }
+    .cam-tl-dot.new-dot  { animation: dot-pop 0.4s ease; }
+    @keyframes dot-pop { 0%{transform:scale(2);opacity:0.5} 100%{transform:scale(1);opacity:1} }
+    .cam-tl-body { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+    .cam-tl-type {
+      font-weight: 700;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+    .cam-tl-type.person   { color: #e8a020; }
+    .cam-tl-type.vehicle  { color: #4a90d9; }
+    .cam-tl-type.animal   { color: #7CFC95; }
+    .cam-tl-type.motion   { color: #d41919; }
+    .cam-tl-detail { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cam-tl-time { font-family: monospace; font-size: 11px; color: var(--muted); white-space: nowrap; }
+
     /* ── Fullscreen camera modal ──────────────────────────────────────────── */
     .cam-modal-bg {
       display: none;
@@ -886,7 +966,17 @@
       <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:var(--muted);">
         <span id="camModel"></span>
         <span id="camLastTs"></span>
-        <span style="margin-left:auto;">SSE webhook alerts active · motion triggers fullscreen alert</span>
+      </div>
+
+      <!-- Motion activity timeline -->
+      <div class="cam-timeline" style="margin-top:14px;">
+        <div class="cam-timeline-hdr">
+          <span>Recent Activity</span>
+          <button type="button" class="cam-tl-clear" onclick="window._tlClear && window._tlClear()">Clear</button>
+        </div>
+        <div id="camTimelineList" class="cam-timeline-list">
+          <div class="cam-tl-empty">No activity yet — motion events will appear here</div>
+        </div>
       </div>
     </div>
   </section>
@@ -2559,6 +2649,63 @@
       } catch (_) {}
     }
 
+    // ── Motion activity timeline ──────────────────────────────────────────
+    (function initTimeline() {
+      const MAX = 20;
+      const events = []; // { ts:Date, kind:string, camera:string, score:string|null }
+
+      function relTime(date) {
+        const s = Math.round((Date.now() - date) / 1000);
+        if (s < 15)  return 'just now';
+        if (s < 60)  return s + 's ago';
+        const m = Math.round(s / 60);
+        if (m < 60)  return m + 'm ago';
+        return Math.round(m / 60) + 'h ago';
+      }
+
+      function render() {
+        const list = $('camTimelineList');
+        if (!list) return;
+        if (!events.length) {
+          list.innerHTML = '<div class="cam-tl-empty">No activity yet — motion events will appear here</div>';
+          return;
+        }
+        list.innerHTML = events.map((ev, i) => `
+          <div class="cam-tl-row${i === 0 ? ' new' : ''}">
+            <div class="cam-tl-dot ${ev.kind}${i === 0 ? ' new-dot' : ''}"></div>
+            <div class="cam-tl-body">
+              <span class="cam-tl-type ${ev.kind}">${ev.kind}</span>
+              <span class="cam-tl-detail">${ev.camera}${ev.score ? ' · ' + ev.score : ''}</span>
+            </div>
+            <span class="cam-tl-time" data-ts="${ev.ts.getTime()}">${relTime(ev.ts)}</span>
+          </div>`).join('');
+      }
+
+      function push(payload) {
+        const raw   = payload.smartDetectTypes;
+        const kinds = Array.isArray(raw) && raw.length ? raw : null;
+        const kind  = kinds ? kinds[0].toLowerCase() : 'motion';
+        const validKinds = ['person', 'vehicle', 'animal'];
+        const safeKind = validKinds.includes(kind) ? kind : 'motion';
+        const camera = typeof payload.camera === 'string' ? payload.camera : 'front door';
+        const score  = typeof payload.score === 'number' ? Math.round(payload.score * 100) + '%' : null;
+        events.unshift({ ts: new Date(), kind: safeKind, camera, score });
+        if (events.length > MAX) events.pop();
+        render();
+      }
+
+      // Tick relative times every 30s without re-rendering the whole list
+      setInterval(() => {
+        document.querySelectorAll('.cam-tl-time[data-ts]').forEach(el => {
+          el.textContent = relTime(new Date(+el.dataset.ts));
+        });
+      }, 30000);
+
+      window._tlClear = () => { events.length = 0; render(); };
+      window._tlPush  = push;
+      render();
+    })();
+
     // ── SSE — UniFi motion webhook listener ──────────────────────────────
     (function initSSE() {
       let es;
@@ -2569,6 +2716,7 @@
             const ev = JSON.parse(e.data);
             if (ev.type === 'motion') {
               console.info('[SmashDeck] motion event', ev.payload);
+              window._tlPush && window._tlPush(ev.payload);
               window._camOpenModal && window._camOpenModal(true);
               showToast('🚨 Motion detected at front door!', 'warn', 6000);
             }
@@ -2576,7 +2724,7 @@
         };
         es.onerror = () => {
           es.close();
-          setTimeout(connect, 5000); // reconnect on drop
+          setTimeout(connect, 5000);
         };
       }
       connect();
