@@ -16,6 +16,12 @@ type AppConfig struct {
 	WyzeAPIKey       string `json:"wyze_api_key"`
 	WyzeAccessToken  string `json:"wyze_access_token,omitempty"`
 	WyzeRefreshToken string `json:"wyze_refresh_token,omitempty"`
+
+	// Web OAuth2 credentials (my.wyze.com) used for WebRTC get-streams.
+	// WyzeWebSessionCookie is the services.wyze.com Flask session cookie used to
+	// obtain a fresh JWT without a browser. WyzeWebAccessToken is the cached JWT.
+	WyzeWebSessionCookie string `json:"wyze_web_session_cookie,omitempty"`
+	WyzeWebAccessToken   string `json:"wyze_web_access_token,omitempty"`
 }
 
 func DefaultSettingsPath() string {
@@ -37,6 +43,8 @@ func LoadAppConfig(path string) AppConfig {
 			cfg.WyzeAPIKey = stored.WyzeAPIKey
 			cfg.WyzeAccessToken = stored.WyzeAccessToken
 			cfg.WyzeRefreshToken = stored.WyzeRefreshToken
+			cfg.WyzeWebSessionCookie = stored.WyzeWebSessionCookie
+			cfg.WyzeWebAccessToken = stored.WyzeWebAccessToken
 		}
 	}
 	// Env always wins for credentials

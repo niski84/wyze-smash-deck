@@ -47,11 +47,14 @@ type HTTPServer struct {
 	automationPath string
 	logPath        string
 
-	store     *AutomationStore
-	registry  *DeviceRegistry
-	logger    *AutomationLogger
-	scheduler *AutomationScheduler
-	devCache  deviceCache
+	store           *AutomationStore
+	registry        *DeviceRegistry
+	logger          *AutomationLogger
+	scheduler       *AutomationScheduler
+	devCache        deviceCache
+	sseHub          *SSEHub
+	snapCache       snapshotCache
+	streamRefresher *streamRefresher
 }
 
 func NewHTTPServer(cfg AppConfig) *HTTPServer {
@@ -66,9 +69,35 @@ func NewHTTPServer(cfg AppConfig) *HTTPServer {
 		store:          NewAutomationStore(autoPath),
 		registry:       NewDeviceRegistry(filepath.Clean("data/wyzeferal-devices.json")),
 		logger:         NewAutomationLogger(logPath),
+		sseHub:         newSSEHub(),
 	}
 	s.scheduler = NewAutomationScheduler(s.store, s.logger, s.wyzeClient)
+
+	if cfg.WyzeWebSessionCookie != "" {
+		streamClient := NewWyzeStreamClient(
+			cfg.WyzeWebSessionCookie,
+			cfg.WyzeWebAccessToken,
+			func(jwt string) {
+				s.mu.Lock()
+				s.cfg.WyzeWebAccessToken = jwt
+				c := s.cfg
+				s.mu.Unlock()
+				_ = SaveAppConfig(s.settingsPath, c)
+			},
+		)
+		s.streamRefresher = newStreamRefresher(streamClient, "GW_DBD_80482C640246", wyzeDoorbellDeviceModel)
+	}
+
 	return s
+}
+
+// StartStreamRefresher launches the background WebRTC params refresh goroutine.
+// Must be called after NewHTTPServer; ctx controls the goroutine lifetime.
+func (s *HTTPServer) StartStreamRefresher(ctx context.Context) {
+	if s.streamRefresher == nil {
+		return
+	}
+	go s.streamRefresher.start(ctx)
 }
 
 func (s *HTTPServer) wyzeClient() *WyzeClient {
@@ -128,6 +157,11 @@ func (s *HTTPServer) Routes(webDir string) http.Handler {
 	mux.HandleFunc("/api/automations/", s.handleAutomationSubroutes)
 	mux.HandleFunc("/api/automations", s.handleAutomations)
 	mux.HandleFunc("/api/logs", s.handleLogs)
+	mux.HandleFunc("/api/camera/snapshot", s.handleCameraSnapshot)
+	mux.HandleFunc("/api/camera/info", s.handleCameraInfo)
+	mux.HandleFunc("/api/camera/stream-token", s.handleCameraStreamToken)
+	mux.HandleFunc("/api/webhooks/unifi", s.handleWebhookUnifi)
+	mux.Handle("/api/events", s.sseHub)
 
 	fs := http.FileServer(http.Dir(filepath.Clean(webDir)))
 	mux.Handle("/", fs)
@@ -260,6 +294,14 @@ func (s *HTTPServer) handleDevices(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, apiResp{Success: true, Data: map[string]any{"devices": enriched, "configured": true}})
 }
 
+// deviceLabel returns a human-readable label for a MAC, preferring local display name over MAC.
+func (s *HTTPServer) deviceLabel(mac string) string {
+	if meta := s.registry.Get(mac); meta.DisplayName != "" {
+		return meta.DisplayName
+	}
+	return mac
+}
+
 // handleDeviceSubroutes: POST /api/devices/{mac}/control, PUT /api/devices/{mac}/name
 func (s *HTTPServer) handleDeviceSubroutes(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/devices/")
@@ -293,11 +335,11 @@ func (s *HTTPServer) handleDeviceSubroutes(w http.ResponseWriter, r *http.Reques
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
 		if err := c.ControlDevice(ctx, mac, req.Model, req.On); err != nil {
-			s.logger.Warn("Control FAILED mac=%s on=%v model=%q err=%v", mac, req.On, req.Model, err)
+			s.logger.Warn("Control FAILED %q on=%v model=%q err=%v", s.deviceLabel(mac), req.On, req.Model, err)
 			writeJSON(w, http.StatusBadGateway, apiResp{Success: false, Error: err.Error()})
 			return
 		}
-		s.logger.Info("Manual control mac=%s on=%v", mac, req.On)
+		s.logger.Info("Manual control %q on=%v", s.deviceLabel(mac), req.On)
 		writeJSON(w, http.StatusOK, apiResp{Success: true, Data: map[string]bool{"ok": true}})
 	case "brightness":
 		if r.Method != http.MethodPost {
@@ -324,11 +366,11 @@ func (s *HTTPServer) handleDeviceSubroutes(w http.ResponseWriter, r *http.Reques
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
 		if err := c.SetBrightness(ctx, mac, req.Model, req.Brightness); err != nil {
-			s.logger.Warn("Brightness FAILED mac=%s val=%d model=%q err=%v", mac, req.Brightness, req.Model, err)
+			s.logger.Warn("Brightness FAILED %q val=%d model=%q err=%v", s.deviceLabel(mac), req.Brightness, req.Model, err)
 			writeJSON(w, http.StatusBadGateway, apiResp{Success: false, Error: err.Error()})
 			return
 		}
-		s.logger.Info("Brightness mac=%s val=%d", mac, req.Brightness)
+		s.logger.Info("Brightness %q val=%d", s.deviceLabel(mac), req.Brightness)
 		writeJSON(w, http.StatusOK, apiResp{Success: true, Data: map[string]any{"brightness": req.Brightness}})
 	case "color":
 		if r.Method != http.MethodPost {
@@ -355,11 +397,11 @@ func (s *HTTPServer) handleDeviceSubroutes(w http.ResponseWriter, r *http.Reques
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
 		if err := c.SetColor(ctx, mac, req.Model, req.Color); err != nil {
-			s.logger.Warn("Color FAILED mac=%s color=%s model=%q err=%v", mac, req.Color, req.Model, err)
+			s.logger.Warn("Color FAILED %q color=%s model=%q err=%v", s.deviceLabel(mac), req.Color, req.Model, err)
 			writeJSON(w, http.StatusBadGateway, apiResp{Success: false, Error: err.Error()})
 			return
 		}
-		s.logger.Info("Color mac=%s color=%s", mac, req.Color)
+		s.logger.Info("Color %q color=%s", s.deviceLabel(mac), req.Color)
 		writeJSON(w, http.StatusOK, apiResp{Success: true, Data: map[string]any{"color": req.Color}})
 	case "name":
 		if r.Method != http.MethodPut {
@@ -377,7 +419,7 @@ func (s *HTTPServer) handleDeviceSubroutes(w http.ResponseWriter, r *http.Reques
 			writeJSON(w, http.StatusBadRequest, apiResp{Success: false, Error: err.Error()})
 			return
 		}
-		s.logger.Info("Local display name mac=%s name=%q", mac, strings.TrimSpace(req.LocalDisplayName))
+		s.logger.Info("Local display name %q → %q", mac, strings.TrimSpace(req.LocalDisplayName))
 		writeJSON(w, http.StatusOK, apiResp{Success: true, Data: map[string]any{"saved": true, "id": strings.ToUpper(strings.TrimSpace(mac))}})
 	case "tags":
 		if r.Method != http.MethodPut {
@@ -395,7 +437,7 @@ func (s *HTTPServer) handleDeviceSubroutes(w http.ResponseWriter, r *http.Reques
 			writeJSON(w, http.StatusBadRequest, apiResp{Success: false, Error: err.Error()})
 			return
 		}
-		s.logger.Info("Tags mac=%s tags=%v", mac, req.Tags)
+		s.logger.Info("Tags %q tags=%v", s.deviceLabel(mac), req.Tags)
 		writeJSON(w, http.StatusOK, apiResp{Success: true, Data: map[string]any{"saved": true, "tags": req.Tags}})
 	default:
 		writeJSON(w, http.StatusNotFound, apiResp{Success: false, Error: "not found"})
