@@ -52,6 +52,10 @@ type WyzeDevice struct {
 	DeviceParams struct {
 		SwitchState int `json:"switch_state"`
 	} `json:"device_params"`
+
+	// Camera-specific fields (populated for product_type == "Camera")
+	ThumbnailURL string `json:"thumbnail_url,omitempty"`
+	ThumbnailTS  int64  `json:"thumbnail_ts,omitempty"`
 }
 
 // EffectiveMAC returns the device's stable identifier from whichever field the API populated.
@@ -203,10 +207,12 @@ func (c *WyzeClient) ListDevices(ctx context.Context) ([]WyzeDevice, error) {
 	}
 	devices, err := c.fetchDevices(ctx, token)
 	if err != nil && isAuthErr(err) {
-		// Try a fresh login and retry once
-		if lerr := c.login(ctx); lerr == nil {
-			devices, err = c.fetchDevices(ctx, c.accessToken)
+		// Cached token is invalid — clear it and force a fresh login
+		c.accessToken = ""
+		if lerr := c.login(ctx); lerr != nil {
+			return nil, fmt.Errorf("wyze re-login failed after auth error (%v): %w", err, lerr)
 		}
+		devices, err = c.fetchDevices(ctx, c.accessToken)
 	}
 	return devices, err
 }
@@ -265,9 +271,11 @@ func (c *WyzeClient) ControlDevice(ctx context.Context, mac, model string, on bo
 	}
 	err = c.setProperty(ctx, token, mac, model, "P3", boolToStr(on))
 	if err != nil && isAuthErr(err) {
-		if lerr := c.login(ctx); lerr == nil {
-			err = c.setProperty(ctx, c.accessToken, mac, model, "P3", boolToStr(on))
+		c.accessToken = ""
+		if lerr := c.login(ctx); lerr != nil {
+			return fmt.Errorf("wyze re-login failed after auth error (%v): %w", err, lerr)
 		}
+		err = c.setProperty(ctx, c.accessToken, mac, model, "P3", boolToStr(on))
 	}
 	return err
 }
@@ -318,11 +326,13 @@ func (c *WyzeClient) SetBrightness(ctx context.Context, mac, model string, brigh
 		{"pid": "P1501", "pvalue": fmt.Sprintf("%d", brightness)},
 	})
 	if err != nil && isAuthErr(err) {
-		if lerr := c.login(ctx); lerr == nil {
-			err = c.setPropertyList(ctx, c.accessToken, mac, model, []map[string]string{
-				{"pid": "P1501", "pvalue": fmt.Sprintf("%d", brightness)},
-			})
+		c.accessToken = ""
+		if lerr := c.login(ctx); lerr != nil {
+			return fmt.Errorf("wyze re-login failed after auth error (%v): %w", err, lerr)
 		}
+		err = c.setPropertyList(ctx, c.accessToken, mac, model, []map[string]string{
+			{"pid": "P1501", "pvalue": fmt.Sprintf("%d", brightness)},
+		})
 	}
 	return err
 }
@@ -351,9 +361,11 @@ func (c *WyzeClient) SetColor(ctx context.Context, mac, model, hexColor string) 
 	}
 	err = c.setPropertyList(ctx, token, mac, model, props)
 	if err != nil && isAuthErr(err) {
-		if lerr := c.login(ctx); lerr == nil {
-			err = c.setPropertyList(ctx, c.accessToken, mac, model, props)
+		c.accessToken = ""
+		if lerr := c.login(ctx); lerr != nil {
+			return fmt.Errorf("wyze re-login failed after auth error (%v): %w", err, lerr)
 		}
+		err = c.setPropertyList(ctx, c.accessToken, mac, model, props)
 	}
 	return err
 }
@@ -533,6 +545,18 @@ func wyzeDeviceFromMap(m map[string]any) WyzeDevice {
 	}
 	if s, _ := m["product_type"].(string); s != "" {
 		d.Type = s
+	}
+
+	// Extract camera thumbnail from device_params.camera_thumbnails
+	if dp, ok := m["device_params"].(map[string]any); ok {
+		if ct, ok := dp["camera_thumbnails"].(map[string]any); ok {
+			if u, _ := ct["thumbnails_url"].(string); u != "" {
+				d.ThumbnailURL = u
+			}
+			if ts, ok := ct["thumbnails_ts"].(float64); ok {
+				d.ThumbnailTS = int64(ts)
+			}
+		}
 	}
 
 	// Wyze API sends conn_state (0=offline, 1=online); is_online is a legacy fallback.

@@ -195,7 +195,11 @@ func (c *WyzeStreamClient) GetStreamParams(ctx context.Context, deviceID, device
 
 	raw, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("get-streams returned HTTP %d: %s", resp.StatusCode, string(raw)[:200])
+		snippet := string(raw)
+		if len(snippet) > 200 {
+			snippet = snippet[:200]
+		}
+		return nil, fmt.Errorf("get-streams returned HTTP %d: %s", resp.StatusCode, snippet)
 	}
 
 	var result struct {
