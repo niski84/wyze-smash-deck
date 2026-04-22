@@ -18,10 +18,10 @@ type AppConfig struct {
 	WyzeRefreshToken string `json:"wyze_refresh_token,omitempty"`
 
 	// Web OAuth2 credentials (my.wyze.com) used for WebRTC get-streams.
-	// WyzeWebSessionCookie is the services.wyze.com Flask session cookie used to
-	// obtain a fresh JWT without a browser. WyzeWebAccessToken is the cached JWT.
-	WyzeWebSessionCookie string `json:"wyze_web_session_cookie,omitempty"`
-	WyzeWebAccessToken   string `json:"wyze_web_access_token,omitempty"`
+	// Both session and remember_token cookies are required by services.wyze.com.
+	WyzeWebSessionCookie      string `json:"wyze_web_session_cookie,omitempty"`
+	WyzeWebRememberToken      string `json:"wyze_web_remember_token,omitempty"`
+	WyzeWebAccessToken        string `json:"wyze_web_access_token,omitempty"`
 }
 
 func DefaultSettingsPath() string {
@@ -44,6 +44,7 @@ func LoadAppConfig(path string) AppConfig {
 			cfg.WyzeAccessToken = stored.WyzeAccessToken
 			cfg.WyzeRefreshToken = stored.WyzeRefreshToken
 			cfg.WyzeWebSessionCookie = stored.WyzeWebSessionCookie
+			cfg.WyzeWebRememberToken = stored.WyzeWebRememberToken
 			cfg.WyzeWebAccessToken = stored.WyzeWebAccessToken
 		}
 	}

@@ -76,10 +76,22 @@ func NewHTTPServer(cfg AppConfig) *HTTPServer {
 	if cfg.WyzeWebSessionCookie != "" {
 		streamClient := NewWyzeStreamClient(
 			cfg.WyzeWebSessionCookie,
+			cfg.WyzeWebRememberToken,
 			cfg.WyzeWebAccessToken,
 			func(jwt string) {
 				s.mu.Lock()
 				s.cfg.WyzeWebAccessToken = jwt
+				c := s.cfg
+				s.mu.Unlock()
+				_ = SaveAppConfig(s.settingsPath, c)
+			},
+		)
+		streamClient.SetCookieRefresher(
+			extractBrowserCookies,
+			func(session, remember string) {
+				s.mu.Lock()
+				s.cfg.WyzeWebSessionCookie = session
+				s.cfg.WyzeWebRememberToken = remember
 				c := s.cfg
 				s.mu.Unlock()
 				_ = SaveAppConfig(s.settingsPath, c)

@@ -8,13 +8,16 @@ import (
 )
 
 const (
-	streamRefreshInterval = 3 * time.Minute  // refresh well within TURN TTL (~5 min)
+	streamRefreshInterval = 3 * time.Minute  // normal cadence — well within TURN TTL (~5 min)
 	streamStaleCutoff     = 4 * time.Minute  // serve stale if refresh fails, up to this age
+	streamRetryBase       = 30 * time.Second // first retry delay after failure
+	streamRetryMax        = 2 * time.Minute  // cap on backoff
 )
 
 // streamRefresher keeps fresh WebRTC stream params in memory.
 // A background goroutine polls get-streams every 3 minutes so the frontend
-// never has to wait for a cold call.
+// never has to wait for a cold call. On failure it backs off and retries,
+// and recovers from any panic so it never silently dies.
 type streamRefresher struct {
 	mu     sync.RWMutex
 	latest *StreamParams
@@ -56,11 +59,34 @@ func (r *streamRefresher) refresh(ctx context.Context) error {
 }
 
 // start runs the background refresh loop until ctx is cancelled.
-// It performs an initial fetch immediately, then on every interval tick.
+// On failures it backs off exponentially up to streamRetryMax, then resumes
+// the normal 3-minute cadence once a refresh succeeds again.
+// A deferred recover ensures the goroutine never silently dies from a panic.
 func (r *streamRefresher) start(ctx context.Context) {
-	if err := r.refresh(ctx); err != nil {
-		log.Printf("[stream-refresh] initial fetch failed: %v", err)
+	defer func() {
+		if v := recover(); v != nil {
+			log.Printf("[stream-refresh] PANIC recovered: %v — restarting in 30s", v)
+			time.Sleep(30 * time.Second)
+			go r.start(ctx) // restart the goroutine
+		}
+	}()
+
+	// Initial fetch — retry with backoff until it succeeds or ctx is done.
+	for {
+		if err := r.refresh(ctx); err != nil {
+			log.Printf("[stream-refresh] initial fetch failed: %v — retrying in 30s", err)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(streamRetryBase):
+				continue
+			}
+		}
+		break
 	}
+
+	retryDelay := streamRetryBase
+	consecutiveFails := 0
 
 	ticker := time.NewTicker(streamRefreshInterval)
 	defer ticker.Stop()
@@ -70,8 +96,26 @@ func (r *streamRefresher) start(ctx context.Context) {
 			return
 		case <-ticker.C:
 			if err := r.refresh(ctx); err != nil {
-				log.Printf("[stream-refresh] refresh failed: %v", err)
+				consecutiveFails++
+				log.Printf("[stream-refresh] refresh failed (attempt %d): %v — retrying in %s", consecutiveFails, err, retryDelay)
+
+				ticker.Reset(retryDelay)
+				retryDelay = min(retryDelay*2, streamRetryMax)
+			} else {
+				if consecutiveFails > 0 {
+					log.Printf("[stream-refresh] recovered after %d failed attempt(s)", consecutiveFails)
+				}
+				consecutiveFails = 0
+				retryDelay = streamRetryBase
+				ticker.Reset(streamRefreshInterval)
 			}
 		}
 	}
+}
+
+func min(a, b time.Duration) time.Duration {
+	if a < b {
+		return a
+	}
+	return b
 }

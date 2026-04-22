@@ -53,31 +53,62 @@ type StreamParams struct {
 //     → fresh OAuth2 JWT (2-hour TTL)
 //  2. POST app.wyzecam.com/app/v4/camera/get-streams with JWT +
 //     HMAC_MD5(body, MD5(jwt + secret))
+// CookieRefreshFunc is called when the session cookie is detected as expired.
+// It should return a fresh (sessionCookie, rememberToken) pair, or an error.
+type CookieRefreshFunc func() (session, remember string, err error)
+
 type WyzeStreamClient struct {
 	mu            sync.Mutex
 	sessionCookie string // services.wyze.com Flask session cookie
+	rememberToken string // services.wyze.com remember_token cookie (required alongside session)
 	accessToken   string // current OAuth2 JWT
 
-	tokenFetchedAt time.Time
-	tokenSaved     func(jwt string) // persists refreshed token to settings
+	tokenFetchedAt  time.Time
+	tokenSaved      func(jwt string)      // persists refreshed JWT to settings
+	cookieRefresher CookieRefreshFunc     // called on session expiry to self-heal
+	cookieSaved     func(s, r string)     // persists refreshed cookies to settings
 
 	client *http.Client
 }
 
-func NewWyzeStreamClient(sessionCookie, cachedJWT string, tokenSaved func(string)) *WyzeStreamClient {
+func NewWyzeStreamClient(sessionCookie, rememberToken, cachedJWT string, tokenSaved func(string)) *WyzeStreamClient {
 	return &WyzeStreamClient{
 		sessionCookie: strings.TrimSpace(sessionCookie),
+		rememberToken: strings.TrimSpace(rememberToken),
 		accessToken:   strings.TrimSpace(cachedJWT),
 		tokenSaved:    tokenSaved,
 		client:        &http.Client{Timeout: 20 * time.Second},
 	}
 }
 
+// SetCookieRefresher wires in a self-heal callback that extracts fresh cookies
+// from Chrome when the session expires, so the server can recover without a restart.
+func (c *WyzeStreamClient) SetCookieRefresher(fn CookieRefreshFunc, saved func(session, remember string)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cookieRefresher = fn
+	c.cookieSaved = saved
+}
+
 func (c *WyzeStreamClient) IsConfigured() bool {
 	return c.sessionCookie != ""
 }
 
+// isSessionExpiredErr returns true for Wyze auth errors that mean the session
+// cookie (not the JWT) has expired and needs to be re-extracted from Chrome.
+func isSessionExpiredErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "You are not authorized") ||
+		strings.Contains(msg, "V1 check failed") ||
+		strings.Contains(msg, "refresh token raise exception")
+}
+
 // ensureJWT returns a valid JWT, refreshing via the services.wyze.com session if needed.
+// If the session cookie has expired, it calls the cookieRefresher (if set) to
+// self-heal by extracting fresh cookies from Chrome, then retries.
 func (c *WyzeStreamClient) ensureJWT(ctx context.Context) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -86,11 +117,32 @@ func (c *WyzeStreamClient) ensureJWT(ctx context.Context) (string, error) {
 	if c.accessToken == "" || time.Since(c.tokenFetchedAt) > 110*time.Minute {
 		jwt, err := c.fetchJWT(ctx)
 		if err != nil {
-			if c.accessToken != "" {
-				log.Printf("[stream-client] JWT refresh failed (%v), using cached token", err)
-				return c.accessToken, nil
+			// Session cookie expired — attempt self-heal via browser-harness
+			if isSessionExpiredErr(err) && c.cookieRefresher != nil {
+				log.Printf("[stream-client] session expired (%v) — attempting self-heal via browser", err)
+				if session, remember, rerr := c.cookieRefresher(); rerr == nil {
+					c.sessionCookie = session
+					c.rememberToken = remember
+					if c.cookieSaved != nil {
+						c.cookieSaved(session, remember)
+					}
+					jwt, err = c.fetchJWT(ctx)
+					if err == nil {
+						log.Printf("[stream-client] self-heal succeeded — fresh cookies extracted from browser")
+					} else {
+						log.Printf("[stream-client] self-heal attempted but JWT still failing: %v", err)
+					}
+				} else {
+					log.Printf("[stream-client] self-heal failed (browser cookie extraction: %v)", rerr)
+				}
 			}
-			return "", fmt.Errorf("JWT refresh: %w", err)
+			if err != nil {
+				if c.accessToken != "" {
+					log.Printf("[stream-client] JWT refresh failed (%v), using cached token", err)
+					return c.accessToken, nil
+				}
+				return "", fmt.Errorf("JWT refresh: %w", err)
+			}
 		}
 		c.accessToken = jwt
 		c.tokenFetchedAt = time.Now()
@@ -107,7 +159,11 @@ func (c *WyzeStreamClient) fetchJWT(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Cookie", "session="+c.sessionCookie)
+	cookieVal := "session=" + c.sessionCookie
+	if c.rememberToken != "" {
+		cookieVal += "; remember_token=" + c.rememberToken
+	}
+	req.Header.Set("Cookie", cookieVal)
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.client.Do(req)
